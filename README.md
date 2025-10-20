@@ -1,2 +1,4 @@
 # ROBODEX2025_nova2_MQTT_Control
 MQTT Control for nova2
+
+requirements.txtはcobottaを参考に作成した

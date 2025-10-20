@@ -27,6 +27,7 @@ sys.path.append(package_dir)
 from filter import SMAFilter
 from interpolate import DelayedInterpolator
 from nova2.tools import tool_infos, tool_classes, tool_base
+from nova2_robot import Nova2Robot
 
 
 # パラメータ
@@ -1883,8 +1884,8 @@ class Nova2_CON:
                 self.robot_handler.close()
                 break
 
-
-class Cobotta_Pro_CON_Archiver:
+# 後回し
+class Nova2_CON_Archiver:
     def monitor_start(self, f: TextIO | None = None):
         while True:
             # ログファイル変更時
