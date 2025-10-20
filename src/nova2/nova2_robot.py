@@ -110,7 +110,8 @@ class Nova2Robot:
         self._default_grip_width = None
         self._default_release_width = None
         
-        self.text_log = ""
+        self.global_state = {}
+        self.global_state["connect"] = False
         self._raw_feedback = None
 
     def start(self):
@@ -119,21 +120,21 @@ class Nova2Robot:
         # それに合わせてタイムアウト時間は長めに設定する
         # このときスレーブモードの制御コマンドはタイムアウトエラーではなく
         # 指示値生成遅延エラーで通知される
-        
-
+        self.text_log = ""
+        self.logger.info("Connect feedback port")
         # need try
-        self.client_dash = DobotApiDashboard(
-                    "192.168.5.1", 29999, self.text_log)
+        # self.client_dash = DobotApiDashboard(
+        #             "192.168.5.1", 29999, self.text_log)
         self.client_feed = DobotApiFeedBack(
                     "192.168.5.1", 30004,self.text_log)
 
         #ServoP only accepted in this port.
-        self.client_move = DobotApiDashboard("192.168.5.1", 30003, self.text_log)
-
+        # self.client_move = DobotApiDashboard("192.168.5.1", 30003, self.text_log)
 
         self.global_state["connect"] = not self.global_state["connect"]
         
-        self.text_log.insert(tk.END,"Connect!"+str(self.global_state["connect"])+"\n")
+        # self.text_log.insert(tk.END,"Connect!"+str(self.global_state["connect"])+"\n")
+      
 
         self._set_feed_back()
         

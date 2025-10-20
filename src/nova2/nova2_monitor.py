@@ -44,7 +44,8 @@ class Nova2_MON:
         self.robot = Nova2Robot(host=ROBOT_IP, logger=self.robot_logger)
         self.robot.start()
         self.robot.clear_error()
-        tool_id = int(os.environ["TOOL_ID"])
+        # tool_id = int(os.environ["TOOL_ID"])
+        tool_id = 2
         self.find_and_setup_hand(tool_id)
 
     def find_and_setup_hand(self, tool_id):
@@ -205,6 +206,7 @@ class Nova2_MON:
                 # else:
                 #     self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
                 # self.reconnect_after_timeout(e)
+                self.logger.error("fail to get tcp pose")
                 self.logger.error(e)
                 actual_tcp_pose = None
                 
@@ -217,6 +219,7 @@ class Nova2_MON:
                 # else:
                 #     self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
                 # self.reconnect_after_timeout(e)
+                self.logger.error("fail to get joints")
                 self.logger.error(e)
                 actual_joint = None
 
@@ -290,40 +293,41 @@ class Nova2_MON:
             # エラー情報や非常停止状態を取得しないようにする。
             
             # エラー関連の取得は未調査。nova2_robotの対応関数も未編集
-            with self.slave_mode_lock:
-                if self.pose[14] == 0:
-                    try:
-                        errors = self.robot.get_cur_error_info_all()
-                    except Exception as e:
+            # with self.slave_mode_lock:
+            #     if self.pose[14] == 0:
+            #         try:
+            #             errors = self.robot.get_cur_error_info_all()
+            #         except Exception as e:
 
-                        self.logger.error(f"{self.robot.format_error(e)}")
-                        self.reconnect_after_timeout(e)
-                        errors = []
-                    # 制御プロセスのエラー検出と方法が違うので、
-                    # 直後は状態プロセスでエラーが検出されないことがある
-                    # その場合は次のループに検出を持ち越す
-                    if len(errors) > 0:
-                        error = {"errors": errors}
-                        # 自動復帰可能エラー
-                        auto_recoverable = \
-                            self.robot.are_all_errors_stateless(errors)
-                        error["auto_recoverable"] = auto_recoverable
-                    try:
-                        is_emergency_stopped = self.robot.is_emergency_stopped()
-                    except Exception as e:
-                        self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
-                        self.reconnect_after_timeout(e)
+            #             self.logger.error(f"{self.robot.format_error(e)}")
+            #             self.reconnect_after_timeout(e)
+            #             errors = []
+            #         # 制御プロセスのエラー検出と方法が違うので、
+            #         # 直後は状態プロセスでエラーが検出されないことがある
+            #         # その場合は次のループに検出を持ち越す
+            #         if len(errors) > 0:
+            #             error = {"errors": errors}
+            #             # 自動復帰可能エラー
+            #             auto_recoverable = \
+            #                 self.robot.are_all_errors_stateless(errors)
+            #             error["auto_recoverable"] = auto_recoverable
+            #         try:
+            #             is_emergency_stopped = self.robot.is_emergency_stopped()
+            #         except Exception as e:
+            #             # self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
+            #             self.logger.error(e)
+            #             self.reconnect_after_timeout(e)
                         
                         
-            # 切り替わるときにログを出す
-            if is_emergency_stopped != last_is_emergency_stopped:
-                if is_emergency_stopped:
-                    self.logger.error("Emergency stop is ON")
-                else:
-                    self.logger.info("Emergency stop is OFF")
-            last_is_emergency_stopped = is_emergency_stopped
-            actual_joint_js["emergency_stopped"] = is_emergency_stopped
-            self.pose[36] = int(is_emergency_stopped)
+            # # 切り替わるときにログを出す
+            # if is_emergency_stopped != last_is_emergency_stopped:
+            #     if is_emergency_stopped:
+            #         self.logger.error("Emergency stop is ON")
+            #     else:
+            #         self.logger.info("Emergency stop is OFF")
+            # last_is_emergency_stopped = is_emergency_stopped
+            # actual_joint_js["emergency_stopped"] = is_emergency_stopped
+            # self.pose[36] = int(is_emergency_stopped)
 
             if self.pose[15] == 0:
                 actual_joint_js["mqtt_control"] = "OFF"
@@ -432,7 +436,7 @@ class Nova2_MON:
                     self.get_logging_dir_and_change_log_file()
             except Exception as e:
                 self.logger.error("Error in monitor")
-                self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
+                # self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
             if self.pose[32] == 1:
                 if self.client is not None:
                     self.client.loop_stop()
