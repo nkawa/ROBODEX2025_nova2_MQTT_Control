@@ -110,7 +110,7 @@ class Nova2Robot:
         self._default_grip_width = None
         self._default_release_width = None
         
-        self.text_log
+        self.text_log = ""
         self._raw_feedback = None
 
     def start(self):
