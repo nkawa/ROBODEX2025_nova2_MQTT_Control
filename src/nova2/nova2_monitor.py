@@ -203,7 +203,7 @@ class Nova2_MON:
                 self.pose[:len(actual_joint)] = actual_joint
                 self.pose[19] = 1
 
-            if now-last > 0.3 or "tool_change" in actual_joint_js or "put_down_box" in actual_joint_js:
+            if now-last > 0.3 :
                 jss = json.dumps(actual_joint_js)
                 if self.client is not None:
                     self.client.publish(MQTT_ROBOT_STATE_TOPIC, jss)
@@ -243,6 +243,7 @@ class Nova2_MON:
             t_elapsed = time.time() - now
             t_wait = T_INTV - t_elapsed
             if t_wait > 0:
+#                self.logger.info("Sleep wait for " + str(t_wait))
                 time.sleep(t_wait)
 
     def setup_logger(self, log_queue):
