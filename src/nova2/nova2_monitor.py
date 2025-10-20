@@ -26,13 +26,12 @@ from nova2.tools import tool_infos, tool_classes
 load_dotenv(os.path.join(os.path.dirname(__file__),'.env'))
 ROBOT_IP = os.getenv("ROBOT_IP", "192.168.5.1")
 HAND_IP = os.getenv("HAND_IP", "192.168.5.46")
-ROBOT_UUID = os.getenv("ROBOT_UUID","cobotta-pro-real")
+ROBOT_UUID = os.getenv("ROBOT_UUID","nova2-real")
 MQTT_SERVER = os.getenv("MQTT_SERVER", "sora2.uclab.jp")
 MQTT_ROBOT_STATE_TOPIC = os.getenv("MQTT_ROBOT_STATE_TOPIC", "robot")+"/"+ROBOT_UUID
-MQTT_FORMAT = os.getenv("MQTT_FORMAT", "Denso-Cobotta-Pro-Control-IK")
+MQTT_FORMAT = os.getenv("MQTT_FORMAT", "NOVA2_Control_IK")
 MQTT_MODE = os.getenv("MQTT_MODE", "metawork")
 SAVE = os.getenv("SAVE", "true") == "true"
-
 # 基本的に運用時には固定するパラメータ
 save_state = SAVE
 
@@ -129,6 +128,7 @@ class Nova2_MON:
 
             actual_joint_js = {}
 
+            # 不要なはず？--------------   
             # ツール番号
             tool_id = int(self.pose[23].copy())
             # 起動時（共有メモリが初期化されている）のみ初期値を使用
@@ -193,8 +193,33 @@ class Nova2_MON:
             # 終了した場合のみキーを追加
             if status_line_cut is not None:
                 actual_joint_js["line_cut"] = status_line_cut
+            # ----------------
+                
+                
+            # TCP姿勢
+            try:
+                actual_tcp_pose = self.robot.get_current_pose()
+            except Exception as e:
+                # if type(e) is ORiNException and self.robot.is_error_level_0(e):
+                #     self.logger.warning(f"{self.robot.format_error_wo_desc(e)}")
+                # else:
+                #     self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
+                # self.reconnect_after_timeout(e)
+                self.logger.error(e)
+                actual_tcp_pose = None
+                
+            # 関節
+            try:
+                actual_joint = self.robot.get_current_joint()
+            except Exception as e:
+                # if type(e) is ORiNException and self.robot.is_error_level_0(e):
+                #     self.logger.warning(f"{self.robot.format_error_wo_desc(e)}")
+                # else:
+                #     self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
+                # self.reconnect_after_timeout(e)
+                self.logger.error(e)
+                actual_joint = None
 
-            actual_joint = None
             if actual_joint is not None:
                 if MQTT_FORMAT == 'UR-realtime-control-MQTT':        
                     joints = ['j1','j2','j3','j4','j5','j6']
@@ -208,6 +233,10 @@ class Nova2_MON:
                     # actual_joint_js["joints"][4] = actual_joint_js["joints"][4] - 90
                     # NOTE(20250604): 一時的な対応。VR側で修正され次第削除。
                     # actual_joint_js["joints"][0] = actual_joint_js["joints"][0] + 180
+                elif MQTT_FORMAT == "NOVA2_Control_IK":
+                    joints = ['j1','j2','j3','j4','j5','j6']
+                    actual_joint_js.update({
+                        k: v for k, v in zip(joints, actual_joint)})
                 else:
                     raise ValueError
             
@@ -216,6 +245,7 @@ class Nova2_MON:
             actual_joint_js["time"] = time_ms
             # [X, Y, Z, RX, RY, RZ]: センサ値の力[N]とモーメント[Nm]
 
+            # 不要？------- 
             actual_joint_js["tool_id"] = int(tool_id)
             # ツールチェンジ中はツールのセンサは使用しない
             if is_in_tool_change:
@@ -235,6 +265,21 @@ class Nova2_MON:
                         force = None
                     else:
                         force = float(force - 100)
+            # ---------
+                        
+            # モータがONか
+            try:
+                enabled = self.robot.is_enabled()
+            except Exception as e:
+                # if type(e) is ORiNException and self.robot.is_error_level_0(e):
+                #     self.logger.warning(f"{self.robot.format_error_wo_desc(e)}")
+                # else:
+                #     self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
+                # self.reconnect_after_timeout(e)
+                self.logger.error(e)
+                enabled = False
+            actual_joint_js["enabled"] = enabled
+
 
 
             is_emergency_stopped = False
@@ -243,6 +288,8 @@ class Nova2_MON:
             # スレーブモードが切断される。
             # 制御プロセスでスレーブモードを前提とした処理をしている間 (lock中) は、
             # エラー情報や非常停止状態を取得しないようにする。
+            
+            # エラー関連の取得は未調査。nova2_robotの対応関数も未編集
             with self.slave_mode_lock:
                 if self.pose[14] == 0:
                     try:
@@ -266,6 +313,8 @@ class Nova2_MON:
                     except Exception as e:
                         self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
                         self.reconnect_after_timeout(e)
+                        
+                        
             # 切り替わるときにログを出す
             if is_emergency_stopped != last_is_emergency_stopped:
                 if is_emergency_stopped:
@@ -307,6 +356,7 @@ class Nova2_MON:
             # MQTT手動制御モード時のみ記録する
             # それ以外の時のエラーはstate情報は必要ないと考えたため
             if f is not None and self.pose[15] == 1:
+                forces = None #Nova2は力センサなし
                 datum = dict(
                     time=now,
                     kind="state",

@@ -21,6 +21,7 @@ package_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(package_dir)
 from nova2.config import SHM_NAME, SHM_SIZE
 from nova2.nova2_monitor import Nova2_MON
+from nova2.nova2_control import Nova2_CON
 from nova2_monitor_gui import run_joint_monitor_gui
 
 from dotenv import load_dotenv
@@ -67,7 +68,7 @@ class Cobotta_Pro_MQTT:
             self.client.subscribe(MQTT_MANAGE_RCV_TOPIC)
             self.logger.info("subscribe to: " + MQTT_MANAGE_RCV_TOPIC)
         else:
-            self.logger.info("MQTT:Connected with result code " + str(rc),
+            self.logger.info("MQTT:Connected with result code " + str(reason_code),
                              "subscribe ctrl", MQTT_CTRL_TOPIC)
             self.mqtt_ctrl_topic = MQTT_CTRL_TOPIC
             self.client.subscribe(self.mqtt_ctrl_topic)
@@ -300,7 +301,7 @@ class ProcessManager:
         self.state_recv_mqtt = True
 
     def startMonitor(self, logging_dir: str | None = None, disable_mqtt: bool = False):
-        self.mon = Cobotta_Pro_MON()
+        self.mon = Nova2_MON()
         self.monP = Process(
             target=self.mon.run_proc,
             args=(self.monitor_dict,
@@ -310,34 +311,34 @@ class ProcessManager:
                   self.monitor_pipe,
                   logging_dir,
                   disable_mqtt),
-            name="Cobotta-Pro-monitor")
+            name="Nova2-monitor")
         self.monP.start()
         self.state_monitor = True
 
     def startControl(self, logging_dir: str | None = None):
-        self.ctrl = Cobotta_Pro_CON()
+        self.ctrl = Nova2_CON()
         self.ctrlP = Process(
             target=self.ctrl.run_proc,
             args=(self.control_pipe, self.slave_mode_lock, self.log_queue, logging_dir, self.control_to_archiver_queue),
-            name="Cobotta-Pro-control")
+            name="Nova2-control")
         self.ctrlP.start()
 
-        self.ctrl_archiver = Cobotta_Pro_CON_Archiver()
-        self.ctrl_archiverP = Process(
-            target=self.ctrl_archiver.run_proc,
-            args=(self.control_archiver_pipe,
-                  self.log_queue,
-                  logging_dir,
-                  self.control_to_archiver_queue,
-                  ),
-            name="Cobotta-Pro-control-archiver")
-        self.ctrl_archiverP.start()
+        # self.ctrl_archiver = Nova2_CON_Archiver()
+        # self.ctrl_archiverP = Process(
+        #     target=self.ctrl_archiver.run_proc,
+        #     args=(self.control_archiver_pipe,
+        #           self.log_queue,
+        #           logging_dir,
+        #           self.control_to_archiver_queue,
+        #           ),
+        #     name="Nova2-control-archiver")
+        # self.ctrl_archiverP.start()
         self.state_control = True
 
     def startMonitorGUI(self):
         self.monitor_guiP = Process(
             target=run_joint_monitor_gui,
-            name="Cobotta-Pro-monitor-gui",
+            name="Nova2-monitor-gui",
         )
         self.monitor_guiP.start()
         self.state_monitor_gui = True

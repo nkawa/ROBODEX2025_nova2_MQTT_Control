@@ -5,6 +5,8 @@ import time
 import traceback
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
+import threading
+
 import numpy as np
 import pandas as pd
 import sys
@@ -12,8 +14,8 @@ import sys
 package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vendor'))
 sys.path.append(package_dir)
 
-
-from dobot.dobot_api import DobotApiDashboard, DobotApiFeedBack, DobotApiDashboard
+from dobot_api import *
+# from dobot.dobot_api import DobotApiDashboard, DobotApiFeedBack, DobotApiDashboard
 
 
 # エラーコード
@@ -107,6 +109,9 @@ class Nova2Robot:
         self._hand_parameters = hand_parameters
         self._default_grip_width = None
         self._default_release_width = None
+        
+        self.text_log
+        self._raw_feedback = None
 
     def start(self):
         self.logger.info("Robot start")
@@ -130,14 +135,84 @@ class Nova2Robot:
         
         self.text_log.insert(tk.END,"Connect!"+str(self.global_state["connect"])+"\n")
 
-        self.set_feed_back()
+        self._set_feed_back()
         
-
-    def set_feed_back(self):
+    def _set_feed_back(self):
         if self.global_state["connect"]:
-            thread = Thread(target=self.feed_back)
-            thread.setDaemon(True)
+            thread = threading.Thread(target=self._feed_back)
+            thread.daemon = True
             thread.start()
+            
+    def _feed_back(self):
+        last = 0
+        while True:
+            now = time.time()
+            if last == 0:
+                last = now
+                continue
+            if now - last > 10:
+                self._raw_feedback = self.client_feed.feedBackData()
+    
+    # monitorから叩く
+    def get_current_pose(self):
+        cur_pos = self._raw_feedback[0][27]
+        # x, y, z, rx, ry, rz = cur_pos
+
+        return cur_pos
+    
+    def get_current_joint(self):
+        cur_jnt = self._raw_feedback[0][23]
+        return cur_jnt
+    
+    # documentからでは格納位置が分からない
+    def is_enabled(self):
+        # is_enable = self._raw_feedback[0][]
+        is_enable = 1
+        if is_enable == 1:
+            return True
+        else:
+            return False
+    
+    def enable(self) -> bool:
+        #本来は以下のようにしたい
+        # # STO状態（セーフティ状態）を解除する
+        # self.manual_reset()
+        # # ティーチングペンダントのエラーをクリアする
+        # self.clear_error()
+        # self.enable_wo_clear_error()
+        try:
+            self.client_dash.EnableRobot(load=1.0, centerX=0, centerY=0, centerZ=70) #TCPハードコードしないようにしたい
+            return True
+        except Exception as e:
+            self.logger.error(f"Enable failed")
+            self.logger.warning(f"{self.format_error(e)}")
+            return False
+        
+    def disable(self):
+        self.logger.info("disable")
+        # disableするかのチェックもしたい
+        # if self._hRob == 0 or self._bcap is None:
+        #     self.logger.warning(f"Disable undone: {self._hRob=}, {self._bcap=}")
+        #     return
+        try:
+            self.client_dash.DisableRobot()
+        except Exception as e:
+            self.logger.warning("Error disabling motor but ignored.")
+            self.logger.warning(f"{self.format_error(e)}")
+
+    # gripperでmodbusとか使わない限りはNova2では不要？
+    def stop(self):
+        self.logger.info("stop")
+        # if self._hRob != 0:
+        #     self._bcap.robot_release(self._hRob)
+        #     self._hRob = 0
+        # if self._hCtrl != 0:
+        #     self._bcap.controller_disconnect(self._hCtrl)
+        #     self._hCtrl = 0
+        # if self._bcap is not None:
+        #     self._bcap.service_stop()
+        #     self._bcap = None
+
 
 
 
@@ -210,12 +285,12 @@ class Nova2Robot:
             return
         self._bcap.controller_execute(self._hCtrl, "ClearError")
 
-    def enable(self) -> bool:
-        # STO状態（セーフティ状態）を解除する
-        self.manual_reset()
-        # ティーチングペンダントのエラーをクリアする
-        self.clear_error()
-        self.enable_wo_clear_error()
+    # def enable(self) -> bool:
+    #     # STO状態（セーフティ状態）を解除する
+    #     self.manual_reset()
+    #     # ティーチングペンダントのエラーをクリアする
+    #     self.clear_error()
+    #     self.enable_wo_clear_error()
 
     def enable_wo_clear_error(self) -> None:
         # Cobotta Proの手動モードではイネーブル前に
@@ -387,18 +462,18 @@ class Nova2Robot:
         time.sleep(1)
         return done
 
-    def get_current_pose(self):
-        cur_pos = self._bcap.robot_execute(self._hRob, "CurPos")
-        # x, y, z, rx, ry, rz, fig = cur_pos
+    # def get_current_pose(self):
+    #     cur_pos = self._bcap.robot_execute(self._hRob, "CurPos")
+    #     # x, y, z, rx, ry, rz, fig = cur_pos
 
-        # ロボットコントローラからタイムスタンプも追加で返すことができる
-        # cur_pos_ex = bcap.robot_execute(hRob, "CurPosEx")
-        # t, x, y, z, rx, ry, rz, fig = cur_pos_ex
-        # t: コントローラ電源ONからの時間（msec）
-        # 他の処理と比較するには同じプログラムで時間を計算したほうが便利なので
-        # 使用しない
-        # NOTE: b-CAPからハンドを使うとデータが届かないためcur_posがNoneになることがある
-        return cur_pos[:6]
+    #     # ロボットコントローラからタイムスタンプも追加で返すことができる
+    #     # cur_pos_ex = bcap.robot_execute(hRob, "CurPosEx")
+    #     # t, x, y, z, rx, ry, rz, fig = cur_pos_ex
+    #     # t: コントローラ電源ONからの時間（msec）
+    #     # 他の処理と比較するには同じプログラムで時間を計算したほうが便利なので
+    #     # 使用しない
+    #     # NOTE: b-CAPからハンドを使うとデータが届かないためcur_posがNoneになることがある
+    #     return cur_pos[:6]
 
     def enter_servo_mode(self):
         self.logger.info("enter_servo_mode")
@@ -413,29 +488,29 @@ class Nova2Robot:
             return
         self._bcap.robot_execute(self._hRob, "slvChangeMode", self.slvChangeMode)
 
-    def disable(self):
-        self.logger.info("disable")
-        if self._hRob == 0 or self._bcap is None:
-            self.logger.warning(f"Disable undone: {self._hRob=}, {self._bcap=}")
-            return
-        try:
-            self._bcap.robot_execute(self._hRob, "Motor", 0)
-        except Exception as e:
-            self.logger.warning("Error disabling motor but ignored.")
-            self.logger.warning(f"{self.format_error(e)}")
-        self._bcap.robot_execute(self._hRob, "Givearm")
+    # def disable(self):
+    #     self.logger.info("disable")
+    #     if self._hRob == 0 or self._bcap is None:
+    #         self.logger.warning(f"Disable undone: {self._hRob=}, {self._bcap=}")
+    #         return
+    #     try:
+    #         self._bcap.robot_execute(self._hRob, "Motor", 0)
+    #     except Exception as e:
+    #         self.logger.warning("Error disabling motor but ignored.")
+    #         self.logger.warning(f"{self.format_error(e)}")
+    #     self._bcap.robot_execute(self._hRob, "Givearm")
 
-    def stop(self):
-        self.logger.info("stop")
-        if self._hRob != 0:
-            self._bcap.robot_release(self._hRob)
-            self._hRob = 0
-        if self._hCtrl != 0:
-            self._bcap.controller_disconnect(self._hCtrl)
-            self._hCtrl = 0
-        if self._bcap is not None:
-            self._bcap.service_stop()
-            self._bcap = None
+    # def stop(self):
+    #     self.logger.info("stop")
+    #     if self._hRob != 0:
+    #         self._bcap.robot_release(self._hRob)
+    #         self._hRob = 0
+    #     if self._hCtrl != 0:
+    #         self._bcap.controller_disconnect(self._hCtrl)
+    #         self._hCtrl = 0
+    #     if self._bcap is not None:
+    #         self._bcap.service_stop()
+    #         self._bcap = None
 
     def _format_servo_mode(self, servo_mode: int) -> str:
         # (ex.) s = "0x100"
@@ -861,13 +936,13 @@ class Nova2Robot:
         self.stop()
         self.logger.info("Robot deleted")
 
-    def get_current_joint(self):
-        # コントローラ内部で一定周期（8ms）に更新された現在位置をJ 型で取得する
-        # 8関節分出るがCobotta Pro 900は6関節分のみ有効
-        # 非常停止中も実行できる
-        # 所要時間は1ms程度
-        cur_jnt = self._bcap.robot_execute(self._hRob, "CurJnt")
-        return cur_jnt[:6]
+    # def get_current_joint(self):
+    #     # コントローラ内部で一定周期（8ms）に更新された現在位置をJ 型で取得する
+    #     # 8関節分出るがCobotta Pro 900は6関節分のみ有効
+    #     # 非常停止中も実行できる
+    #     # 所要時間は1ms程度
+    #     cur_jnt = self._bcap.robot_execute(self._hRob, "CurJnt")
+    #     return cur_jnt[:6]
 
     def cur_spd(self):
         # 内部速度の設定値を返す

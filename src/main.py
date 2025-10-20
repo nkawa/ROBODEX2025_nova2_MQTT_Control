@@ -577,9 +577,12 @@ class MQTTWin:
         self.logger.setLevel(logging.INFO)
 
     def ConnectRobot(self):
-        if self.pm.state_control and self.pm.state_monitor:
+        
+        
+        if self.pm.state_monitor:
+        # if self.pm.state_control and self.pm.state_monitor:
             return
-        self.pm.startControl(logging_dir=self.logging_dir)
+        # self.pm.startControl(logging_dir=self.logging_dir)
         self.pm.startMonitor(logging_dir=self.logging_dir)
         if self.use_joint_monitor_plot:
             self.pm.startMonitorGUI()
