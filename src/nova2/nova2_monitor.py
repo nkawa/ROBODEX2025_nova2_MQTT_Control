@@ -42,26 +42,12 @@ class Nova2_MON:
 
     def init_robot(self):
         self.robot = Nova2Robot(host=ROBOT_IP, logger=self.robot_logger)
-        self.robot.start()
-        self.robot.clear_error()
-        # tool_id = int(os.environ["TOOL_ID"])
-        tool_id = 2
-        self.find_and_setup_hand(tool_id)
 
-    def find_and_setup_hand(self, tool_id):
-        connected = False
-        tool_info = self.get_tool_info(tool_infos, tool_id)
-        name = tool_info["name"]
-        hand = tool_classes[name]()
-        if tool_id != -1:
-            connected = hand.connect_and_setup()
-            if not connected:
-                raise ValueError(f"Failed to connect to hand: {name}")
-        else:
-            hand = None
-        self.hand_name = name
-        self.hand = hand
-        self.tool_id = tool_id
+        self.robot.start()
+        self.logger.info("Robot started")
+        self.robot.clear_error()
+        self.logger.info("connected to nova2robot" )
+
 
 
     def init_realtime(self):
@@ -104,10 +90,7 @@ class Nova2_MON:
         self.client.connect(MQTT_SERVER, 1883, 60)
         self.client.loop_start()   # 通信処理開始
 
-    def get_tool_info(
-        self, tool_infos: List[Dict[str, Any]], tool_id: int) -> Dict[str, Any]:
-        return [tool_info for tool_info in tool_infos
-                if tool_info["id"] == tool_id][0]
+
 
     def monitor_start(self, f: TextIO | None = None):
         last = 0
@@ -128,74 +111,6 @@ class Nova2_MON:
                 last_error_monitored = now
 
             actual_joint_js = {}
-
-            # 不要なはず？--------------   
-            # ツール番号
-            tool_id = int(self.pose[23].copy())
-            # 起動時（共有メモリが初期化されている）のみ初期値を使用
-            if tool_id == 0:
-                tool_id = self.tool_id
-            # それ以外は制御プロセスからの値を使用
-            else:
-                self.tool_id = tool_id
-
-            # ツールチェンジ
-            status_tool_change = None
-            next_tool_id = int(self.pose[17].copy())
-            if next_tool_id != 0:
-                if not is_in_tool_change:
-                    is_in_tool_change = True
-                    self.logger.info("Tool change started")
-            else:
-                if self.pose[41] == 1 and is_in_tool_change:
-                    is_in_tool_change = False
-                    status_tool_change = bool(self.pose[18] == 1)
-                    self.logger.info("Tool change finished")
-            if status_tool_change is not None:
-                self.logger.info(f"Tool change status: {status_tool_change}")
-                # 終了した場合のみキーを追加
-                actual_joint_js["tool_change"] = status_tool_change
-                # 成功した場合のみ接続
-                if status_tool_change:
-                    next_tool_info = self.get_tool_info(tool_infos, tool_id)
-                    name = next_tool_info["name"]
-                    hand = tool_classes[name]()
-                    connected = hand.connect_and_setup()
-                    if not connected:
-                        self.logger.warning(
-                            f"Failed to connect to hand: {name}")
-                    self.hand_name = name
-                    self.hand = hand
-
-            # 棚の上の箱を作業台に置くデモ
-            status_put_down_box = None
-            put_down_box = self.pose[21].copy()
-            if put_down_box != 0:
-                if not is_put_down_box:
-                    is_put_down_box = True
-            else:
-                if self.pose[41] == 1 and is_put_down_box:
-                    is_put_down_box = False
-                    status_put_down_box = bool(self.pose[22] == 1)
-            # 終了した場合のみキーを追加
-            if status_put_down_box is not None:
-                actual_joint_js["put_down_box"] = status_put_down_box
-
-            # カッター移動            
-            status_line_cut = None
-            line_cut = self.pose[38].copy()
-            if line_cut != 0:
-                if not line_cut:
-                    line_cut = True
-            else:
-                if self.pose[41] == 1 and line_cut:
-                    line_cut = False
-                    status_line_cut = bool(self.pose[39] == 1)
-            # 終了した場合のみキーを追加
-            if status_line_cut is not None:
-                actual_joint_js["line_cut"] = status_line_cut
-            # ----------------
-                
                 
             # TCP姿勢
             try:
@@ -248,27 +163,7 @@ class Nova2_MON:
             actual_joint_js["time"] = time_ms
             # [X, Y, Z, RX, RY, RZ]: センサ値の力[N]とモーメント[Nm]
 
-            # 不要？------- 
-            actual_joint_js["tool_id"] = int(tool_id)
-            # ツールチェンジ中はツールのセンサは使用しない
-            if is_in_tool_change:
-                width = None
-                force = None
-            else:
-                width = None
-                force = None
-                if self.hand_name == "onrobot_2fg7":
-                    width = self.pose[12]
-                    if width == 0:
-                        width = None
-                    else:
-                        width = float(width - 100)
-                    force = self.pose[40]
-                    if force == 0:
-                        force = None
-                    else:
-                        force = float(force - 100)
-            # ---------
+
                         
             # モータがONか
             try:
@@ -292,42 +187,6 @@ class Nova2_MON:
             # 制御プロセスでスレーブモードを前提とした処理をしている間 (lock中) は、
             # エラー情報や非常停止状態を取得しないようにする。
             
-            # エラー関連の取得は未調査。nova2_robotの対応関数も未編集
-            # with self.slave_mode_lock:
-            #     if self.pose[14] == 0:
-            #         try:
-            #             errors = self.robot.get_cur_error_info_all()
-            #         except Exception as e:
-
-            #             self.logger.error(f"{self.robot.format_error(e)}")
-            #             self.reconnect_after_timeout(e)
-            #             errors = []
-            #         # 制御プロセスのエラー検出と方法が違うので、
-            #         # 直後は状態プロセスでエラーが検出されないことがある
-            #         # その場合は次のループに検出を持ち越す
-            #         if len(errors) > 0:
-            #             error = {"errors": errors}
-            #             # 自動復帰可能エラー
-            #             auto_recoverable = \
-            #                 self.robot.are_all_errors_stateless(errors)
-            #             error["auto_recoverable"] = auto_recoverable
-            #         try:
-            #             is_emergency_stopped = self.robot.is_emergency_stopped()
-            #         except Exception as e:
-            #             # self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
-            #             self.logger.error(e)
-            #             self.reconnect_after_timeout(e)
-                        
-                        
-            # # 切り替わるときにログを出す
-            # if is_emergency_stopped != last_is_emergency_stopped:
-            #     if is_emergency_stopped:
-            #         self.logger.error("Emergency stop is ON")
-            #     else:
-            #         self.logger.info("Emergency stop is OFF")
-            # last_is_emergency_stopped = is_emergency_stopped
-            # actual_joint_js["emergency_stopped"] = is_emergency_stopped
-            # self.pose[36] = int(is_emergency_stopped)
 
             if self.pose[15] == 0:
                 actual_joint_js["mqtt_control"] = "OFF"
@@ -400,7 +259,7 @@ class Nova2_MON:
         else:
             self.robot_handler = logging.StreamHandler()
         self.robot_logger.addHandler(self.robot_handler)
-        self.robot_logger.setLevel(logging.WARNING)
+        self.robot_logger.setLevel(logging.INFO)
 
     def get_logging_dir_and_change_log_file(self) -> None:
         command = self.monitor_pipe.recv()
@@ -411,7 +270,7 @@ class Nova2_MON:
 
     def run_proc(self, monitor_dict, monitor_lock, slave_mode_lock, log_queue, monitor_pipe, logging_dir, disable_mqtt: bool = False):
         self.setup_logger(log_queue)
-        self.logger.info("Process started")
+        self.logger.info("Monitor Process started")
         self.sm = mp.shared_memory.SharedMemory(SHM_NAME)
         self.pose = np.ndarray((SHM_SIZE,), dtype=np.dtype("float32"), buffer=self.sm.buf)
         self.monitor_dict = monitor_dict
@@ -423,6 +282,7 @@ class Nova2_MON:
         self.init_realtime()
         self.init_robot()
         self.connect_mqtt(disable_mqtt=disable_mqtt)
+        self.logger.info("Starting monitor loop")
         while True:
             try:
                 if save_state:
@@ -435,8 +295,7 @@ class Nova2_MON:
                 if will_change_log_file:
                     self.get_logging_dir_and_change_log_file()
             except Exception as e:
-                self.logger.error("Error in monitor")
-                # self.logger.error(f"{self.robot.format_error_wo_desc(e)}")
+                self.logger.error("Error in monitor",e)
             if self.pose[32] == 1:
                 if self.client is not None:
                     self.client.loop_stop()

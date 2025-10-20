@@ -17,41 +17,6 @@ from nova2.tools import tool_infos
 tool_ids = [tool_info["id"] for tool_info in tool_infos]
 
 
-class ToolChangePopup(tk.Toplevel):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.result = None
-        # 親ウインドウの手前に表示
-        self.transient(parent)
-        # すべてのイベントをポップアップで捕捉
-        self.grab_set()
-        self.title("Tool Change")
-        # ポップアップを閉じるときの処理を上書き
-        self.protocol("WM_DELETE_WINDOW", self.on_close)
-        
-        tk.Label(self, text="Select a tool:").pack(pady=10)
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(pady=5)
-        names = [f"Tool {i}" for i in tool_ids] + ["Cancel"]
-        for name in names:
-            b = tk.Button(btn_frame, text=name, width=10,
-                          command=lambda n=name: self.button_pressed(n))
-            b.pack(side=tk.LEFT, padx=5)
-
-        # ポップアップが閉じるまで待機    
-        self.wait_window()
-    
-    def button_pressed(self, name):
-        if name == "Cancel":
-            self.result = None
-        else:
-            self.result = int(name.split(" ")[1])
-        self.destroy()
-
-    def on_close(self):
-        self.result = None
-        self.destroy()
-
 
 class SetAreaPopup(tk.Toplevel):
     def __init__(self, parent):
@@ -155,7 +120,7 @@ class MQTTWin:
         # self.button["DisconnectMQTT"].grid(row=row,column=4,padx=2,pady=2,sticky="ew", columnspan=2)
 
         self.button["ToolChange"] = tk.Button(self.root, text="ToolChange", padx=5,
-                      command=self.ToolChange, state="disabled")
+                      command=None, state="disabled")
         self.button["ToolChange"].grid(
             row=row,column=6,padx=2,pady=2,sticky="ew", columnspan=2)
 
