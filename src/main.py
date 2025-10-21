@@ -735,13 +735,18 @@ class MQTTWin:
 
     def update_gui_log(self):
         while True:
-            msg = self.gui_log_queue.get(block=True, timeout=None)
-            # WM_DELETE_WINDOW後はハングアップする
-            # 直接GUILoggingHandlerから呼び出しLoggingがハングアップすると
-            # スレッドをjoinにより安全に終了できなくなるため
-            # queueを経由して別スレッドで呼び出す
-            # このスレッドはデーモンスレッドなのでjoinしなくても問題ない
-            self.root.after(0, self.update_log, msg)
+            msgs = []
+            try:
+                for _ in range(10):
+                    msg = self.gui_log_queue.get(block=False)
+                    msgs.append(msg)
+            except queue.Empty:
+                pass
+            if not msgs:
+                msg = self.gui_log_queue.get(block=True, timeout=None)
+                msgs.append(msg)
+            for msg in msgs:
+                self.root.after(0, self.update_log, msg)
 
     def start_update_gui_log(self):
         self.update_gui_log_thread = threading.Thread(
@@ -752,6 +757,7 @@ class MQTTWin:
         # MQTT制御に入れる状態にならなければチェックしない
         if not self.pm.state_control or not self.pm.state_monitor:
             self.root.after(1000, self.update_button_states_from_mqtt_control)
+            return
         # MQTT制御に入れる状態であれば、MQTT制御状態に応じてボタンの有効無効を切り替える
         last_state_mqtt_control = getattr(
             self, "last_state_mqtt_control", False)
@@ -783,6 +789,8 @@ class MQTTWin:
 
     def update_monitor(self):
         # モニタープロセスからの情報
+        start_time = time.time()
+
         log = self.pm.get_current_monitor_log()
         if log:
             # ロボットの姿勢情報が流れるトピック
@@ -847,7 +855,10 @@ class MQTTWin:
         sm = self.pm.ar.copy()
         sm_str = ",".join(str(int(round(x))) for x in sm)
         self.string_var_sm.set(sm_str)
-        self.root.after(100, self.update_monitor)  # 100ms間隔で表示を更新
+        elapsed = time.time() - start_time
+        if elapsed > 0.1:
+            self.logger.warning(f"Monitor process took {elapsed:.3f}s")
+        self.root.after(300, self.update_monitor)  # 100ms間隔で表示を更新
 
     def update_topic(self, msg: str, box: scrolledtext.ScrolledText) -> None:
         """トピックの内容を表示する"""
