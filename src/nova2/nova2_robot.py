@@ -166,14 +166,11 @@ class Nova2Robot:
         cur_jnt = self._raw_feedback[0][23]
         return cur_jnt
     
-    # documentからでは格納位置が分からない
     def is_enabled(self):
-        # is_enable = self._raw_feedback[0][]
-        is_enable = 1
-        if is_enable == 1:
-            return True
-        else:
-            return False
+        if self._raw_feedback is None:
+            return None
+        is_enable = self._raw_feedback[0][50]
+        return bool(is_enable)
     
     def enable(self) -> bool:
         #本来は以下のようにしたい

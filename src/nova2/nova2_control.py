@@ -156,11 +156,12 @@ class Nova2_CON:
             )
             self.robot.start()
             self.robot.clear_error()
-            self.robot.take_arm()
-            self.robot.SetAreaEnabled(0, True)
-            self.pose[31] = 1
-            tool_id = int(os.environ["TOOL_ID"])
-            self.find_and_setup_hand(tool_id)
+            # self.robot.take_arm() #Nova2では不要？(複数同時にポートへ接続しないかのチェックとか？)
+            # self.robot.SetAreaEnabled(0, True) # Nova2では不要？
+            # self.pose[31] = 1 # エリア機能
+            # tool_id = int(os.environ["TOOL_ID"])
+            # self.find_and_setup_hand(tool_id) # nova2の真空グリッパはdashPortに接続さえすれば動作できるはず
+        
         except Exception as e:
             self.logger.error("Error in initializing robot: ")
             self.logger.error(f"{self.robot.format_error(e)}")
