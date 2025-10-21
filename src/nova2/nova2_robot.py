@@ -112,12 +112,14 @@ class Nova2Robot:
         # このときスレーブモードの制御コマンドはタイムアウトエラーではなく
         # 指示値生成遅延エラーで通知される
         self.text_log = ""
-        self.logger.info("Connect feedback port")
+        self.logger.info("Connecting nova2 feedback port")
         # need try
         # self.client_dash = DobotApiDashboard(
         #             "192.168.5.1", 29999, self.text_log)
         self.client_feed = DobotApiFeedBack(
                     "192.168.5.1", 30004,self.text_log)
+
+        self.logger.info("Feedback port connected")
 
         #ServoP only accepted in this port.
         # self.client_move = DobotApiDashboard("192.168.5.1", 30003, self.text_log)
