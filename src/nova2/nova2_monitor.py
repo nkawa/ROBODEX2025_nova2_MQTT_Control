@@ -21,7 +21,7 @@ import numpy as np
 from dotenv import load_dotenv
 
 from nova2.tools import tool_infos, tool_classes
-
+from nova2_client import Nova2RobotClient
 # パラメータ
 load_dotenv(os.path.join(os.path.dirname(__file__),'.env'))
 ROBOT_IP = os.getenv("ROBOT_IP", "192.168.5.1")
@@ -47,6 +47,16 @@ class Nova2_MON:
         self.logger.info("Robot started")
         self.robot.clear_error()
         self.logger.info("connected to nova2robot" )
+
+    def init_robot_from_client(self, robot_command_queue):
+        self.robot = Nova2RobotClient(
+            robot_command_queue,
+            client_name="CON"
+        )
+        
+    def init_robot_client(self, robot_client: Nova2RobotClient):
+        self.robot = robot_client
+        self.logger.info("Connected to nova2robot via client")
 
 
 
@@ -269,7 +279,7 @@ class Nova2_MON:
         self.logging_dir = logging_dir
         self.pose[34] = 0
 
-    def run_proc(self, monitor_dict, monitor_lock, slave_mode_lock, log_queue, monitor_pipe, logging_dir, disable_mqtt: bool = False):
+    def run_proc(self, monitor_dict, monitor_lock, slave_mode_lock, log_queue, monitor_pipe, logging_dir, disable_mqtt: bool = False,robot_command_queue=None):
         self.setup_logger(log_queue)
         self.logger.info("Monitor Process started")
         self.sm = mp.shared_memory.SharedMemory(SHM_NAME)
@@ -281,7 +291,11 @@ class Nova2_MON:
         self.logging_dir = logging_dir
 
         self.init_realtime()
-        self.init_robot()
+        if robot_command_queue is not None:
+            self.init_robot_from_client(robot_command_queue)
+        else:
+            self.init_robot()
+
         self.connect_mqtt(disable_mqtt=disable_mqtt)
         self.logger.info("Starting monitor loop")
         while True:
