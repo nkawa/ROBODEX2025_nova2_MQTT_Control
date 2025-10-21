@@ -111,15 +111,15 @@ class MQTTWin:
                              command=self.ConnectMQTT, state="normal")
         self.button["ConnectMQTT"].grid(row=row,column=2,padx=2,pady=2,sticky="ew", columnspan=2)
 
-        self.button["DemoPutDownBox"] = tk.Button(self.root, text="DemoPutDownBox", padx=5,
-                       command=self.DemoPutDownBox, state="disabled")
+        self.button["DemoPutDownBox"] = tk.Button(self.root, text="no task", padx=5,
+                       command=None, state="disabled")
         self.button["DemoPutDownBox"].grid(row=row,column=4,padx=2,pady=2,sticky="ew", columnspan=2)
 
         self.button["DisconnectMQTT"] = tk.Button(self.root, text="DisconnectMQTT", padx=5,
                        command=self.DisconnectMQTT, state="disabled")
         # self.button["DisconnectMQTT"].grid(row=row,column=4,padx=2,pady=2,sticky="ew", columnspan=2)
 
-        self.button["ToolChange"] = tk.Button(self.root, text="ToolChange", padx=5,
+        self.button["ToolChange"] = tk.Button(self.root, text="no task", padx=5,
                       command=None, state="disabled")
         self.button["ToolChange"].grid(
             row=row,column=6,padx=2,pady=2,sticky="ew", columnspan=2)
@@ -149,8 +149,8 @@ class MQTTWin:
                       command=self.ReleaseHand, state="disabled")
         self.button["ReleaseHand"].grid(row=row,column=4,padx=2,pady=2,sticky="ew", columnspan=2)
 
-        self.button["LineCut"] = tk.Button(self.root, text="LineCut", padx=5,
-                      command=self.LineCut, state="disabled")
+        self.button["LineCut"] = tk.Button(self.root, text="no task ", padx=5,
+                      command=None, state="disabled")
         self.button["LineCut"].grid(row=row,column=6,padx=2,pady=2,sticky="ew", columnspan=2)
 
         self.frame_enabled = tk.Frame(self.root)
