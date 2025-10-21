@@ -14,7 +14,7 @@ import sys
 package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vendor'))
 sys.path.append(package_dir)
 
-from dobot_api import *
+from nova2.dobot_api import *
 # from dobot.dobot_api import DobotApiDashboard, DobotApiFeedBack, DobotApiDashboard
 
 

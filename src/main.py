@@ -12,8 +12,8 @@ from typing import Optional
 
 from nova2.nova2_mqtt_control import ProcessManager
 
-from nova2.nova2_server import Nova2RobotServer
 from nova2.nova2_client import Nova2RobotClient
+from nova2.nova2_server import Nova2RobotServer
 
 # 使わないけど、とりあえずインポートしておく
 from nova2.tools import tool_infos

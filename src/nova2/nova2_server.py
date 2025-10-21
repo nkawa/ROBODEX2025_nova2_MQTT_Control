@@ -4,7 +4,7 @@ import multiprocessing as mp
 import queue
 import logging
 from typing import Dict, Any
-from nova2_robot import Nova2Robot
+from nova2.nova2_robot import Nova2Robot
 
 class Nova2RobotServer:
     def __init__(self, robot_ip: str = "192.168.5.1"):

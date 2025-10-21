@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, List, TextIO
 from paho.mqtt import client as mqtt
 from nova2.config import SHM_NAME, SHM_SIZE, T_INTV
-from nova2_robot import Nova2Robot
+from nova2.nova2_robot import Nova2Robot
 
 import datetime
 import time
@@ -51,13 +51,10 @@ class Nova2_MON:
     def init_robot_from_client(self, robot_command_queue):
         self.robot = Nova2RobotClient(
             robot_command_queue,
-            client_name="CON"
+            client_name="MON"
         )
+        self.logger.info("connected to nova2robot from client")
         
-    def init_robot_client(self, robot_client: Nova2RobotClient):
-        self.robot = robot_client
-        self.logger.info("Connected to nova2robot via client")
-
 
 
     def init_realtime(self):

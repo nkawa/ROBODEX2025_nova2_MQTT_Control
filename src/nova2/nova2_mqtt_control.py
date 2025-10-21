@@ -17,8 +17,8 @@ import sys
 ## ここでUUID を使いたい
 import uuid
 
-from nova2_server import Nova2RobotServer
-from nova2_client import Nova2RobotClient
+from nova2.nova2_server import Nova2RobotServer
+from nova2.nova2_client import Nova2RobotClient
 
 package_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(package_dir)
@@ -303,6 +303,8 @@ class ProcessManager:
         
         self.robot_server = Nova2RobotServer()
         self.robot_command_queue = self.robot_server.command_queue
+        print("-----")
+        print(self.robot_command_queue)
         
         self.robot_serverP = Process(
             target=self.robot_server.run_proc,
@@ -336,7 +338,7 @@ class ProcessManager:
     def startMonitor(self, logging_dir: str | None = None, disable_mqtt: bool = False):
         if self.state_monitor:
             return
-        self.startRobotServer(logging_dir)
+        self.startRobotServer()
         self.mon = Nova2_MON()
         self.monP = Process(
             target=self.mon.run_proc,
@@ -346,8 +348,7 @@ class ProcessManager:
                   self.log_queue,
                   self.monitor_pipe,
                   logging_dir,
-                  disable_mqtt,
-                  self.robot_command_queue),
+                  disable_mqtt),
                 name="Nova2-monitor")
         self.monP.start()
         self.state_monitor = True

@@ -27,7 +27,7 @@ sys.path.append(package_dir)
 from filter import SMAFilter
 from interpolate import DelayedInterpolator
 from nova2.tools import tool_infos, tool_classes, tool_base
-from nova2_robot import Nova2Robot
+from nova2.nova2_robot import Nova2Robot
 
 
 # パラメータ
@@ -191,25 +191,25 @@ class Nova2_CON:
         self.pose[12] = width
         self.pose[40] = force
 
-    def find_and_setup_hand(self, tool_id):
-        connected = False
-        tool_info = self.get_tool_info(tool_infos, tool_id)
-        name = tool_info["name"]
-        hand = tool_classes[name]()
-        if tool_id != -1:
-            connected = hand.connect_and_setup()
-            if not connected:
-                raise ValueError(f"Failed to connect to hand: {name}")
-        else:
-            hand = None
-        self.hand_name = name
-        self.hand = hand
-        self.tool_id = tool_id
-        self.pose[23] = tool_id
-        if tool_id != -1:
-            self.robot.SetToolDef(
-                tool_info["id_in_robot"], tool_info["tool_def"])
-        self.robot.set_tool(tool_info["id_in_robot"])
+    # def find_and_setup_hand(self, tool_id):
+    #     connected = False
+    #     tool_info = self.get_tool_info(tool_infos, tool_id)
+    #     name = tool_info["name"]
+    #     hand = tool_classes[name]()
+    #     if tool_id != -1:
+    #         connected = hand.connect_and_setup()
+    #         if not connected:
+    #             raise ValueError(f"Failed to connect to hand: {name}")
+    #     else:
+    #         hand = None
+    #     self.hand_name = name
+    #     self.hand = hand
+    #     self.tool_id = tool_id
+    #     self.pose[23] = tool_id
+    #     if tool_id != -1:
+    #         self.robot.SetToolDef(
+    #             tool_info["id_in_robot"], tool_info["tool_def"])
+    #     self.robot.set_tool(tool_info["id_in_robot"])
 
     def init_realtime(self):
         os_used = sys.platform
