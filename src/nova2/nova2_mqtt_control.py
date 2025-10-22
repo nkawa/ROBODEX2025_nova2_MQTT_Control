@@ -17,9 +17,6 @@ import sys
 ## ここでUUID を使いたい
 import uuid
 
-from nova2.nova2_server import Nova2RobotServer
-from nova2.nova2_client import Nova2RobotClient
-
 package_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(package_dir)
 from nova2.config import SHM_NAME, SHM_SIZE
@@ -246,7 +243,7 @@ class ProcessManager:
         # [6:12]: 関節の目標値
         # [12]: ハンドの状態値
         # [13]: ハンドの目標値
-        # [14]: 0: 必ず通常モード。1: 基本的にスレーブモード（通常モードになっている場合もある）
+        # [14]: 0: 必ず通常モード。1: 基本的にスレーブモード（通常モードになっている場合もある）　!!Nova2では指定なし!!
         # [15]: 0: mqtt_control実行中でない。1: mqtt_control実行中
         # [16]: 1: リアルタイム制御停止命令（mqtt_control停止命令ではないことに注意）
         # [17]: ツールチェンジの実行フラグ。0: 終了。0以外: 開始。次のツール番号
@@ -292,38 +289,6 @@ class ProcessManager:
         self.main_to_control_archiver_pipe, self.control_archiver_pipe = \
             multiprocessing.Pipe()
 
-        self.robot_server = None
-        self.robot_serverP = None
-        self.robot_command_queue = None
-        self.state_robot_server = False
-    
-    def startRobotServer(self):
-        if self.state_robot_server:
-            return
-        
-        self.robot_server = Nova2RobotServer()
-        self.robot_command_queue = self.robot_server.command_queue
-        print("-----")
-        print(self.robot_command_queue)
-        
-        self.robot_serverP = Process(
-            target=self.robot_server.run_proc,
-            args=(self.log_queue,),
-            name="Nova2-robot-server"
-        )
-        self.robot_serverP.start()
-        self.state_robot_server = True
-
-        self.mon_robot_client = Nova2RobotClient(
-            self.robot_command_queue,
-            client_name="MON"
-        )
-        self.con_robot_client = Nova2RobotClient(
-            self.robot_command_queue,
-            client_name="CON"
-        )
-    
-        
     def startRecvMQTT(self):
         self.recv = Cobotta_Pro_MQTT()
         self.recvP = Process(
@@ -336,9 +301,6 @@ class ProcessManager:
         self.state_recv_mqtt = True
 
     def startMonitor(self, logging_dir: str | None = None, disable_mqtt: bool = False):
-        if self.state_monitor:
-            return
-        self.startRobotServer()
         self.mon = Nova2_MON()
         self.monP = Process(
             target=self.mon.run_proc,
@@ -349,19 +311,15 @@ class ProcessManager:
                   self.monitor_pipe,
                   logging_dir,
                   disable_mqtt),
-                name="Nova2-monitor")
+            name="Nova2-monitor")
         self.monP.start()
         self.state_monitor = True
 
     def startControl(self, logging_dir: str | None = None):
-        if self.state_control:
-            return
-        self.startRobotServer(logging_dir)
-
         self.ctrl = Nova2_CON()
         self.ctrlP = Process(
             target=self.ctrl.run_proc,
-            args=(self.control_pipe, self.slave_mode_lock, self.log_queue, logging_dir, self.control_to_archiver_queue ),
+            args=(self.control_pipe, self.slave_mode_lock, self.log_queue, logging_dir, self.control_to_archiver_queue),
             name="Nova2-control")
         self.ctrlP.start()
 
@@ -398,16 +356,6 @@ class ProcessManager:
             self.ctrl_archiverP.join()
         if self.monitor_guiP is not None:
             self.monitor_guiP.join()
-
-        if self.robot_serverP is not None:
-            self.robot_server.stop()
-            self.robot_serverP.join(timeout=5)
-            if self.robot_serverP.is_alive():
-                self.robot_serverP.terminate()
-                self.robot_serverP.join(timeout=2)
-        if self.robot_command_queue is not None:
-            self.robot_command_queue.close()
-
         self.sm.close()
         self.sm.unlink()
         self.manager.shutdown()

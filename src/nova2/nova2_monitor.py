@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, List, TextIO
 from paho.mqtt import client as mqtt
 from nova2.config import SHM_NAME, SHM_SIZE, T_INTV
-from nova2.nova2_robot import Nova2Robot
+from nova2_robot import Nova2Robot
 
 import datetime
 import time
@@ -21,7 +21,7 @@ import numpy as np
 from dotenv import load_dotenv
 
 from nova2.tools import tool_infos, tool_classes
-from nova2_client import Nova2RobotClient
+
 # パラメータ
 load_dotenv(os.path.join(os.path.dirname(__file__),'.env'))
 ROBOT_IP = os.getenv("ROBOT_IP", "192.168.5.1")
@@ -41,20 +41,13 @@ class Nova2_MON:
         pass
 
     def init_robot(self):
-        self.robot = Nova2Robot(host=ROBOT_IP, logger=self.robot_logger)
+        self.robot = Nova2Robot(host=ROBOT_IP, logger=self.robot_logger, port=[30004])
 
         self.robot.start()
         self.logger.info("Robot started")
         self.robot.clear_error()
         self.logger.info("connected to nova2robot" )
 
-    def init_robot_from_client(self, robot_command_queue):
-        self.robot = Nova2RobotClient(
-            robot_command_queue,
-            client_name="MON"
-        )
-        self.logger.info("connected to nova2robot from client")
-        
 
 
     def init_realtime(self):
@@ -170,7 +163,6 @@ class Nova2_MON:
             actual_joint_js["time"] = time_ms
             # [X, Y, Z, RX, RY, RZ]: センサ値の力[N]とモーメント[Nm]
 
-
                         
             # モータがONか
             try:
@@ -276,7 +268,7 @@ class Nova2_MON:
         self.logging_dir = logging_dir
         self.pose[34] = 0
 
-    def run_proc(self, monitor_dict, monitor_lock, slave_mode_lock, log_queue, monitor_pipe, logging_dir, disable_mqtt: bool = False,robot_command_queue=None):
+    def run_proc(self, monitor_dict, monitor_lock, slave_mode_lock, log_queue, monitor_pipe, logging_dir, disable_mqtt: bool = False):
         self.setup_logger(log_queue)
         self.logger.info("Monitor Process started")
         self.sm = mp.shared_memory.SharedMemory(SHM_NAME)
@@ -288,11 +280,7 @@ class Nova2_MON:
         self.logging_dir = logging_dir
 
         self.init_realtime()
-        if robot_command_queue is not None:
-            self.init_robot_from_client(robot_command_queue)
-        else:
-            self.init_robot()
-
+        self.init_robot()
         self.connect_mqtt(disable_mqtt=disable_mqtt)
         self.logger.info("Starting monitor loop")
         while True:

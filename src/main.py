@@ -12,9 +12,6 @@ from typing import Optional
 
 from nova2.nova2_mqtt_control import ProcessManager
 
-from nova2.nova2_client import Nova2RobotClient
-from nova2.nova2_server import Nova2RobotServer
-
 # 使わないけど、とりあえずインポートしておく
 from nova2.tools import tool_infos
 tool_ids = [tool_info["id"] for tool_info in tool_infos]
@@ -546,7 +543,7 @@ class MQTTWin:
 
     def ConnectRobot(self):
         
-
+        
         if self.pm.state_monitor:
         # if self.pm.state_control and self.pm.state_monitor:
             return
