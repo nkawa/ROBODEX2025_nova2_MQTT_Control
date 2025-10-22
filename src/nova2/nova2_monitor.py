@@ -26,7 +26,8 @@ from nova2.tools import tool_infos, tool_classes
 load_dotenv(os.path.join(os.path.dirname(__file__),'.env'))
 ROBOT_IP = os.getenv("ROBOT_IP", "192.168.5.1")
 HAND_IP = os.getenv("HAND_IP", "192.168.5.46")
-ROBOT_UUID = os.getenv("ROBOT_UUID","nova2-real")
+# ROBOT_UUID = os.getenv("ROBOT_UUID","nova2-real")
+ROBOT_UUID = os.getenv("ROBOT_UUID","robodex2025-demo-nova2")
 MQTT_SERVER = os.getenv("MQTT_SERVER", "sora2.uclab.jp")
 MQTT_ROBOT_STATE_TOPIC = os.getenv("MQTT_ROBOT_STATE_TOPIC", "robot")+"/"+ROBOT_UUID
 MQTT_FORMAT = os.getenv("MQTT_FORMAT", "NOVA2_Control_IK")
@@ -44,9 +45,7 @@ class Nova2_MON:
         self.robot = Nova2Robot(host=ROBOT_IP, logger=self.robot_logger, port=[30004])
 
         self.robot.start()
-        self.logger.info("Robot started")
         self.robot.clear_error()
-        self.logger.info("connected to nova2robot" )
 
 
 
@@ -152,9 +151,11 @@ class Nova2_MON:
                     # NOTE(20250604): 一時的な対応。VR側で修正され次第削除。
                     # actual_joint_js["joints"][0] = actual_joint_js["joints"][0] + 180
                 elif MQTT_FORMAT == "NOVA2_Control_IK":
-                    joints = ['j1','j2','j3','j4','j5','j6']
-                    actual_joint_js.update({
-                        k: v for k, v in zip(joints, actual_joint)})
+                    actual_joint_js.update({"joints": list(actual_joint) + [0]})
+
+                    #joints = ['j1','j2','j3','j4','j5','j6']
+                    #actual_joint_js.update({
+                    #    k: v for k, v in zip(joints, actual_joint)})
                 else:
                     raise ValueError
             
@@ -219,6 +220,9 @@ class Nova2_MON:
             # それ以外の時のエラーはstate情報は必要ないと考えたため
             if f is not None and self.pose[15] == 1:
                 forces = None #Nova2は力センサなし
+                width = 0
+                force = 0
+                tool_id = 2
                 datum = dict(
                     time=now,
                     kind="state",

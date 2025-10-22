@@ -70,7 +70,7 @@ class Nova2Robot:
         default_servo_mode: int = 0x001,
         default_fig: int = -2,
         host: str = "192.168.5.45",
-        port: int = [30004],
+        port: int = [0],
         timeout: float = 5,
         use_hand: bool = False,
         hand_host: str = "192.168.5.46",
@@ -146,6 +146,7 @@ class Nova2Robot:
         self.global_state["connect"] = not self.global_state["connect"]
         if hasattr(self, 'client_feed'):
             self._set_feed_back()
+            # すぐには取得できない？
         
     def _set_feed_back(self):
         if self.global_state["connect"]:
@@ -155,24 +156,79 @@ class Nova2Robot:
             
     def _feed_back(self):
         last = 0
+        self.logger.info("Now running  Feed Back Thread")
         while True:
             now = time.time()
             if last == 0:
                 last = now
                 continue
-            if now - last > 10:
+
+            if now - last > 3:
                 self._raw_feedback = self.client_feed.feedBackData()
+                time.sleep(0.020)   # 20ミリ秒）待つ               
     
-    # monitorから叩く
+     # monitorから叩く
     def get_current_pose(self):
+        if self._raw_feedback is None:
+            return None
         cur_pos = self._raw_feedback[0][27]
+        return cur_pos
         # x, y, z, rx, ry, rz = cur_pos
 
         return cur_pos
     
     def get_current_joint(self):
+        if self._raw_feedback is None:
+            return None
         cur_jnt = self._raw_feedback[0][23]
         return cur_jnt
+    
+    
+    def enable_robot(self) -> bool:
+        #本来は以下のようにしたい
+        # # STO状態（セーフティ状態）を解除する
+        # self.manual_reset()
+        # # ティーチングペンダントのエラーをクリアする
+        # self.clear_error()
+        # self.enable_wo_clear_error()
+        try:
+            self.client_dash.EnableRobot(load=1.0, centerX=0, centerY=0, centerZ=70) #TCPハードコードしないようにしたい
+            return True
+        except Exception as e:
+            self.logger.error(f"Enable failed")
+            self.logger.warning(f"{self.format_error(e)}")
+            return False
+        
+    def disable(self):
+        self.logger.info("disable")
+        # disableするかのチェックもしたい
+        # if self._hRob == 0 or self._bcap is None:
+        #     self.logger.warning(f"Disable undone: {self._hRob=}, {self._bcap=}")
+        #     return
+        try:
+            self.client_dash.DisableRobot()
+        except Exception as e:
+            self.logger.warning("Error disabling motor but ignored.")
+            self.logger.warning(f"{self.format_error(e)}")
+
+    # gripperでmodbusとか使わない限りはNova2では不要？
+    def stop(self):
+        self.logger.info("stop")
+        # if self._hRob != 0:
+        #     self._bcap.robot_release(self._hRob)
+        #     self._hRob = 0
+        # if self._hCtrl != 0:
+        #     self._bcap.controller_disconnect(self._hCtrl)
+        #     self._hCtrl = 0
+        # if self._bcap is not None:
+        #     self._bcap.service_stop()
+        #     self._bcap = None
+
+
+    def format_error(self, e: Exception) -> str:
+        s = "\n"
+        s = s + "Error trace: " + traceback.format_exc() + "\n"
+        return s
     
     def is_enabled(self):
         if self._raw_feedback is None:
@@ -224,33 +280,6 @@ class Nova2Robot:
         except Exception as e:
             self.logger.warning(f"{self.format_error(e)}")
 
-    
-    def enable(self) -> bool:
-        #本来は以下のようにしたい
-        # # STO状態（セーフティ状態）を解除する
-        # self.manual_reset()
-        # # ティーチングペンダントのエラーをクリアする
-        # self.clear_error()
-        # self.enable_wo_clear_error()
-        try:
-            self.client_dash.EnableRobot(load=1.0, centerX=0, centerY=0, centerZ=70) #TCPハードコードしないようにしたい
-            return True
-        except Exception as e:
-            self.logger.error(f"Enable failed")
-            self.logger.warning(f"{self.format_error(e)}")
-            return False
-        
-    def disable(self):
-        self.logger.info("disable")
-        # disableするかのチェックもしたい
-        # if self._hRob == 0 or self._bcap is None:
-        #     self.logger.warning(f"Disable undone: {self._hRob=}, {self._bcap=}")
-        #     return
-        try:
-            self.client_dash.DisableRobot()
-        except Exception as e:
-            self.logger.warning("Error disabling motor but ignored.")
-            self.logger.warning(f"{self.format_error(e)}")
     
     def clear_error(self) -> None:
         if hasattr(self, 'client_dash'):
@@ -401,18 +430,6 @@ class Nova2Robot:
         # 外部速度(%)の設定
         # スレーブモードでは外部速度は反映されない
         self._bcap.robot_execute(self._hRob, "ExtSpeed", [20])
-        self._bcap.robot_execute(self._hRob, "Motor", 1)
-        return True
-    
-    def enable_robot(self, ext_speed: int = 20) -> None:
-        # STO状態（セーフティ状態）を解除する
-        self.manual_reset()
-        # ロボットの軸の制御権
-        # 引数1: 現在の内部速度，カレントツール番号，カレントワーク番号を変更せず，保持
-        self._bcap.robot_execute(self._hRob, "Takearm", [0, 1])
-        # 外部速度(%)の設定
-        # スレーブモードでは外部速度は反映されない
-        self._bcap.robot_execute(self._hRob, "ExtSpeed", [ext_speed])
         self._bcap.robot_execute(self._hRob, "Motor", 1)
         return True
 

@@ -30,8 +30,11 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__),'.env'))
 MQTT_SERVER = os.getenv("MQTT_SERVER", "sora2.uclab.jp")
 MQTT_CTRL_TOPIC = os.getenv("MQTT_CTRL_TOPIC", "control")
-ROBOT_UUID = os.getenv("ROBOT_UUID","nova2-real")
-ROBOT_MODEL = os.getenv("ROBOT_MODEL","nova2-real")
+# ROBOT_UUID = os.getenv("ROBOT_UUID","nova2-real")
+# ROBOT_MODEL = os.getenv("ROBOT_MODEL","nova2-real")
+ROBOT_MODEL = os.getenv("ROBOT_MODEL","robodex2025-demo-nova2")
+ROBOT_UUID = os.getenv("ROBOT_UUID","robodex2025-demo-nova2")
+
 MQTT_MANAGE_TOPIC = os.getenv("MQTT_MANAGE_TOPIC", "mgr")
 MQTT_MANAGE_RCV_TOPIC = os.getenv("MQTT_MANAGE_RCV_TOPIC", "dev")+"/"+ROBOT_UUID
 MQTT_FORMAT = os.getenv("MQTT_FORMAT", "NOVA2_Control_IK")
@@ -90,9 +93,7 @@ class Cobotta_Pro_MQTT:
 
 
             if MQTT_FORMAT == "NOVA2_Control_IK":
-                joints=['j1','j2','j3','j4','j5','j6']
-                rot =[js[x]  for x in joints]    
-                joint_q = [x for x in rot]
+                joint_q = js["joints"]
             elif MQTT_FORMAT == "Denso-Cobotta-Pro-Control-IK":
                 # 7要素入っているが6要素でよいため
                 rot = js["joints"][:6]

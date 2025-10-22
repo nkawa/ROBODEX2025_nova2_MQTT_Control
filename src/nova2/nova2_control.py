@@ -828,7 +828,7 @@ class Nova2_CON:
 
     def enable(self) -> None:
         try:
-            self.robot.enable_robot(ext_speed=speed_normal)
+            self.robot.enable_robot()
         except Exception as e:
             self.logger.error("Error enabling robot")
             self.logger.error(f"{self.robot.format_error(e)}")
@@ -1015,7 +1015,7 @@ class Nova2_CON:
             change_log_file = self.pose[33].copy()
             if success_stop:
                 # ログファイルを変更することが要求された場合
-                elif change_log_file != 0:
+                if change_log_file != 0:
                     self.logger.info("User required change log file")
                     # ログファイルを変更する
                     self.get_logging_dir_and_change_log_file()
@@ -1025,7 +1025,7 @@ class Nova2_CON:
             # 停止フラグが失敗の場合は、ユーザーが要求した場合か、
             # 自然に内部エラーが発生した場合
             else:
-                elif change_log_file != 0:
+                if change_log_file != 0:
                     # 要求コマンドのみリセット
                     self.pose[33] = 0
                 break
@@ -1249,13 +1249,11 @@ class Nova2_CON:
                     self.send_release()
                 elif command["command"] == "line_cut":
                     self.logger.info("Line cut not during MQTT control")
-                    # self.line_cut()
-                    # debug用
-                    self.robot.get_robot_mode()
-                    self.robot.get_error_id()
-
+                    self.line_cut()
                 elif command["command"] == "clear_error":
                     self.clear_error()
+                    self.robot.get_robot_mode()
+                    self.robot.get_error_id()
                 elif command["command"] == "start_mqtt_control":
                     self.mqtt_control_loop()
                 elif command["command"] == "tool_change":
