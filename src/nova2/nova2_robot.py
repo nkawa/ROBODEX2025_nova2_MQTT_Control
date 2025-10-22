@@ -174,8 +174,6 @@ class Nova2Robot:
         cur_pos = self._raw_feedback[0][27]
         return cur_pos
         # x, y, z, rx, ry, rz = cur_pos
-
-        return cur_pos
     
     def get_current_joint(self):
         if self._raw_feedback is None:
@@ -281,7 +279,7 @@ class Nova2Robot:
             self.logger.warning(f"{self.format_error(e)}")
 
     
-    def clear_error(self) -> None:
+    def clear_error(self):
         if hasattr(self, 'client_dash'):
             self.client_dash.ClearError()
         else:
@@ -311,16 +309,16 @@ class Nova2Robot:
         この時間はコントローラ内部の時間で、ユーザースクリプトの
         時間と少しずれているので使わないほうがよい。
         """
-        self.logger.debug("move_joint_servo")
-        str_joint = []
-        for i in range(6): 
-            str_joint[i] = str(pose[i])                
-        # ret = self.client_move.sendRecvMsg("ServoJ("+str_joint[0]+","+str_joint[1]+","+str_joint[2]+","+str_joint[3]+","+str_joint[4]+","+str_joint[5]+")")
+        print("move joint",pose)
+        str_joint = [str(x) for x in pose]      
+        ret = self.client_move.sendRecvMsg("ServoJ("+str_joint[0]+","+str_joint[1]+","+str_joint[2]+","+str_joint[3]+","+str_joint[4]+","+str_joint[5]+")")
         self.logger.info("ServoJ("+str_joint[0]+","+str_joint[1]+","+str_joint[2]+","+str_joint[3]+","+str_joint[4]+","+str_joint[5]+")")
     
     # 真空グリッパ制御
     def toolDo(self, index, status):
-        ret = self.client_dash.sendRecvMsg("ToolDOExecute("+str(index)+","+str(status)+")")
+        str_index = str(index)
+        str_status = str(status)
+        ret = self.client_dash.sendRecvMsg("ToolDOExecute("+str_index+","+str_status+")")
 
     def leave_servo_mode(self):
         self.logger.info("leave_servo_mode")
@@ -874,32 +872,6 @@ class Nova2Robot:
             self.logger.error(f"Error code: {python_error_to_original_error_str(hr)}")
             desc = self._bcap.controller_execute(self._hCtrl, "GetErrorDescription", hr)
             self.logger.error(f"Error description: {desc}")
-
-    def format_error(self, e: Exception) -> str:
-        try:
-            s = "\n"
-            s = s + "Error trace: " + traceback.format_exc() + "\n"
-            if type(e) is ORiNException:
-                s += "Error type: ORiN exception in controller\n"
-                hr = e.hresult
-                s += f"Error code: {python_error_to_original_error_str(hr)}\n"
-                if self._hCtrl == 0 or self._bcap is None:
-                    s += ("Cannot get error description from the error code. "
-                        "Refer to teaching pendant or documentation.\n")
-                else:
-                    # GetErrorDescriptionはスレーブモード中で実行できない
-                    desc = self._bcap.controller_execute(
-                        self._hCtrl, "GetErrorDescription", hr)
-                    s += f"Error description: {desc}\n"
-            return s
-        # エラーフォーマット時に例外を起こさないようにする
-        # 例えばGetErrorDescriptionはタイムアウトの場合に例外を投げることを確認している
-        # のでそれらをキャッチしておく
-        except Exception as e:
-            s += "Error in format error; during handling of the above exception, " \
-                 "another exception occurred:\n\n"
-            s = s + "Error trace: " + traceback.format_exc() + "\n"
-            return s
 
     def format_error_wo_desc(self, e: Exception) -> str:
         try:

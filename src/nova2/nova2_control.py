@@ -29,7 +29,6 @@ from interpolate import DelayedInterpolator
 from nova2.tools import tool_infos, tool_classes, tool_base
 from nova2_robot import Nova2Robot
 
-
 # パラメータ
 load_dotenv(os.path.join(os.path.dirname(__file__),'.env'))
 ROBOT_IP = os.getenv("ROBOT_IP", "192.168.5.45")
@@ -157,7 +156,7 @@ class Nova2_CON:
                 port=[30003, 29999]
             )
             self.robot.start()
-            self.robot.clear_error()
+            # self.robot.clear_error()
             
         except Exception as e:
             self.logger.error("Error in initializing robot: ")
@@ -273,7 +272,6 @@ class Nova2_CON:
 
     def control_loop(self, f: TextIO | None = None) -> bool:
         """リアルタイム制御ループ"""
-        self.enter_servo_mode()
         self.last = 0
         self.logger.info("Start Control Loop")
         # 状態値が最新の値になるようにする
@@ -287,6 +285,8 @@ class Nova2_CON:
         lock = threading.Lock()
         error_info = {}
         last_target = None
+        
+        decount = 0
 
         use_hand_thread = True
         if use_hand_thread:
@@ -329,15 +329,6 @@ class Nova2_CON:
                     break
                 # ロボットにコマンドを送る前は、非常停止が押されているかを
                 # スレーブモードが解除されているかで確認する
-                if self.pose[37] != 1:
-                    msg = "Robot is not in servo mode"
-                    with lock:
-                        error_info['kind'] = "robot"
-                        error_info['msg'] = msg
-                        error_info['exception'] = ValueError(msg)
-                    error_event.set()
-                    stop_event.set()
-                    break
                 continue
 
             # ツールチェンジなど後の制御可能フラグ
@@ -352,15 +343,6 @@ class Nova2_CON:
                     break
                 # ロボットにコマンドを送る前は、非常停止が押されているかを
                 # スレーブモードが解除されているかで確認する
-                if self.pose[37] != 1:
-                    msg = "Robot is not in servo mode"
-                    with lock:
-                        error_info['kind'] = "robot"
-                        error_info['msg'] = msg
-                        error_info['exception'] = ValueError(msg)
-                    error_event.set()
-                    stop_event.set()
-                    break
                 continue
 
             # NOTE: 最初にVR側でロボットの状態値を取得できていれば追加してもよいかも
@@ -418,7 +400,6 @@ class Nova2_CON:
                 break
 
             last_target = target
-
             sw.lap("First target")
             if self.last == 0:
                 self.logger.info("Start sending control command")
@@ -426,7 +407,6 @@ class Nova2_CON:
                 if stop:
                     break
                 self.last = now
-
                 # 目標値を遅延を許して極力線形補間するためのセットアップ
                 if use_interp:
                     di = DelayedInterpolator(delay=0.1)
@@ -435,7 +415,6 @@ class Nova2_CON:
                 else:
                     target_delayed = target
                 self.last_target_delayed = target_delayed
-                
                 # 移動平均フィルタのセットアップ（t_intv秒間隔）
                 if filter_kind == "original":
                     self.last_control = state
@@ -463,29 +442,23 @@ class Nova2_CON:
                     Kd = 0.02
                     prev_error = np.zeros(6)
                     pd_step = 0
-
                 # 速度制限をフィルタの手前にも入れてみる
                 if True:
                     assert filter_kind in ["original", "feedback_pd_traj"]
                     self.last_target_delayed_velocity = np.zeros(6)
-
                 if filter_kind == "original":
                     self.last_control_velocity = np.zeros(6)
                 elif filter_kind == "feedback_pd_traj":
                     self.last_control_velocity = np.zeros((N - 1, 6))
                 # ロボットにコマンドを送る前は、非常停止が押されているかを
                 # スレーブモードが解除されているかで確認する
-                if self.pose[37] != 1:
-                    msg = "Robot is not in servo mode"
-                    with lock:
-                        error_info['kind'] = "robot"
-                        error_info['msg'] = msg
-                        error_info['exception'] = ValueError(msg)
-                    error_event.set()
-                    stop_event.set()
-                    break
+                print("self.last = 0", self.last)
                 continue
 
+            if (self.last == now):
+                print(now, self.last, now)
+                time.sleep(0.01)
+                continue
             sw.lap("Check stop")
             # 制御値を送り済みの場合は
             # 目標値を状態値にしてロボットを静止させてから止める
@@ -537,6 +510,10 @@ class Nova2_CON:
 
                 self.last_target_delayed_velocity = v
                 target_delayed = self.last_target_delayed + target_diff_speed_limited
+                if(decount == 0):
+                    print("dt", dt)
+                    print(self.last_target_delayed, "last_target_delayed" )
+                    decount += 1
 
             self.last_target_delayed = target_delayed
 
@@ -690,6 +667,7 @@ class Nova2_CON:
             # 平滑化の種類による対応
             if filter_kind == "original":
                 control = self.last_control + target_diff_speed_limited
+                # 右辺の両方がNaN
                 # 登録するだけ
                 _filter.filter(control)
             elif filter_kind == "target":
@@ -745,19 +723,14 @@ class Nova2_CON:
                 try:
                     self.robot.move_joint_servo(control.tolist())
                 except Exception as e:
-                    is_error_level_0 = self.robot.is_error_level_0(e)
-                    if is_error_level_0:
-                        self.logger.warning(
-                            "Maybe trivial error in move_joint_servo")
-                        self.logger.warning(f"{self.robot.format_error(e)}")
-                    else:
-                        with lock:
-                            error_info['kind'] = "robot"
-                            error_info['msg'] = self.robot.format_error(e)
-                            error_info['exception'] = e
-                        error_event.set()
-                        stop_event.set()
-                        break
+                    self.logger.warning(f"{self.robot.format_error(e)}")
+                    # with lock:
+                    #     error_info['kind'] = "robot"
+                    #     error_info['msg'] = self.robot.format_error(e)
+                    #     error_info['exception'] = e
+                    # error_event.set()
+                    # stop_event.set()
+                    #     break
 
                 if not use_hand_thread:
                     sw.lap("Send hand command")
@@ -776,8 +749,9 @@ class Nova2_CON:
             t_elapsed = time.time() - now
             t_wait = t_intv - t_elapsed
             if t_wait > 0:
-                if (move_robot and servo_mode == 0x102) or (not move_robot):
-                    time.sleep(t_wait)
+                # if (move_robot and servo_mode == 0x102) or (not move_robot):
+                time.sleep(t_wait)
+            # time.sleep(0.5)
 
             sw.lap("Check elapsed after command")
             t_elapsed = time.time() - now
@@ -794,6 +768,7 @@ class Nova2_CON:
                 if (control == self.last_control).all():
                     break
                 
+            # print(self.last, now, "last now")
             self.last_control = control
             self.last = now
  
@@ -868,20 +843,6 @@ class Nova2_CON:
         except Exception as e:
             self.logger.error("Error clearing robot error")
             self.logger.error(f"{self.robot.format_error(e)}")
-
-    def enter_servo_mode(self):
-        # self.pose[14]は0のとき必ず通常モード。
-        # self.pose[14]は1のとき基本的にスレーブモードだが、
-        # 変化前後の短い時間は通常モードの可能性がある。
-        # 順番固定
-        with self.slave_mode_lock:
-            self.pose[14] = 1
-        self.robot.enter_servo_mode()
-        # スレーブモードになるまでis_in_servo_modeを使って待つと
-        # 非常停止時に永久に待つ可能性があるので、固定時間だけ待つ
-        # 万が一スレーブモードになっていなくても自動復帰のループで
-        # 再びスレーブモードに入る試みをするので問題ない
-        time.sleep(1)
 
     def leave_servo_mode(self):
         # self.pose[14]は0のとき必ず通常モード。

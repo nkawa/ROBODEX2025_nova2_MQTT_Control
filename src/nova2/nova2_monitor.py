@@ -237,8 +237,8 @@ class Nova2_MON:
                     # serializableへの対応
                     tool_id=float(tool_id),
                 )
-                js = json.dumps(datum, ensure_ascii=False)
-                f.write(js + "\n")
+                # js = json.dumps(datum, ensure_ascii=False)
+                # f.write(js + "\n")
 
             if self.pose[32] == 1:
                 return False
