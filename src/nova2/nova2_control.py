@@ -70,6 +70,7 @@ if servo_mode == 0x102:
     t_intv = 0.004
 else:
     t_intv = T_INTV
+    # t_intv = 0.03 #Nova2の最小制御間隔は30ms
 n_windows *= int(0.008 / t_intv)
 reset_default_state = True
 default_joints = {
@@ -153,63 +154,42 @@ class Nova2_CON:
                 host=ROBOT_IP,
                 default_servo_mode=servo_mode,
                 logger=self.robot_logger,
+                port=[30003, 29999]
             )
             self.robot.start()
             self.robot.clear_error()
-            self.robot.take_arm()
-            self.robot.SetAreaEnabled(0, True)
-            self.pose[31] = 1
-            tool_id = int(os.environ["TOOL_ID"])
-            self.find_and_setup_hand(tool_id)
+            
         except Exception as e:
             self.logger.error("Error in initializing robot: ")
             self.logger.error(f"{self.robot.format_error(e)}")
 
     def get_hand_state(self):        
-        # ハンドの状態値を取得して共有メモリに格納する
-        width = None
-        force = None
-        # NOTE: グリッパー。幅はVR表示に必要かもしれない。
-        # 力は把持の有無に変換してもよいかもしれない。
-        if self.hand_name == "onrobot_2fg7":
-            width = self.hand.get_ext_width()
-            force = self.hand.get_force()
-        # NOTE: 真空グリッパー。真空度しか取得できないのでどう使うか不明。
-        elif self.hand_name == "onrobot_vgc10":
-            width = 0
-            force = 0
-        if width is None:
-            width = 0
-        else:
-            # 0に意味があるのでオフセットをもたせる
-            width += 100
-        if force is None:
-            force = 0
-        else:
-            force += 100
-        self.pose[12] = width
-        self.pose[40] = force
-
-    def find_and_setup_hand(self, tool_id):
-        connected = False
-        tool_info = self.get_tool_info(tool_infos, tool_id)
-        name = tool_info["name"]
-        hand = tool_classes[name]()
-        if tool_id != -1:
-            connected = hand.connect_and_setup()
-            if not connected:
-                raise ValueError(f"Failed to connect to hand: {name}")
-        else:
-            hand = None
-        self.hand_name = name
-        self.hand = hand
-        self.tool_id = tool_id
-        self.pose[23] = tool_id
-        if tool_id != -1:
-            self.robot.SetToolDef(
-                tool_info["id_in_robot"], tool_info["tool_def"])
-        self.robot.set_tool(tool_info["id_in_robot"])
-
+        # # ハンドの状態値を取得して共有メモリに格納する
+        # width = None
+        # force = None
+        # # NOTE: グリッパー。幅はVR表示に必要かもしれない。
+        # # 力は把持の有無に変換してもよいかもしれない。
+        # if self.hand_name == "onrobot_2fg7":
+        #     width = self.hand.get_ext_width()
+        #     force = self.hand.get_force()
+        # # NOTE: 真空グリッパー。真空度しか取得できないのでどう使うか不明。
+        # elif self.hand_name == "onrobot_vgc10":
+        #     width = 0
+        #     force = 0
+        # if width is None:
+        #     width = 0
+        # else:
+        #     # 0に意味があるのでオフセットをもたせる
+        #     width += 100
+        # if force is None:
+        #     force = 0
+        # else:
+        #     force += 100
+        
+        # Nova2の真空グリッパからの情報取得方法は要調査(dashPortから)．そもそも不要？
+        self.pose[12] = 0
+        self.pose[40] = 0
+    
     def init_realtime(self):
         os_used = sys.platform
         process = psutil.Process(os.getpid())
@@ -764,16 +744,7 @@ class Nova2_CON:
                 sw.lap("Send arm command")
                 try:
                     self.robot.move_joint_servo(control.tolist())
-                except ORiNException as e:
-                    if (type(e) is ORiNException and
-                        e.hresult == HResult.E_TIMEOUT):
-                        with lock:
-                            error_info['kind'] = "robot"
-                            error_info['msg'] = self.robot.format_error(e)
-                            error_info['exception'] = e
-                        error_event.set()
-                        stop_event.set()
-                        break
+                except Exception as e:
                     is_error_level_0 = self.robot.is_error_level_0(e)
                     if is_error_level_0:
                         self.logger.warning(
@@ -826,9 +797,6 @@ class Nova2_CON:
             self.last_control = control
             self.last = now
  
-        # スレーブモード解除可能な状態になったら即時に解除しないと指令値生成遅延になる
-        self.leave_servo_mode()       
-
          # ツールチェンジなど後の制御可能フラグ
         self.pose[41] = 0
 
@@ -839,26 +807,28 @@ class Nova2_CON:
         return True
 
     def send_grip(self) -> None:
-        if self.hand_name == "onrobot_2fg7":
-            # NOTE: 呼ぶ度に目標の把持力は変更できるので
-            # VRコントローラーからの入力で動的に把持力を
-            # 変えることもできる (どういう仕組みを作るかは別)
-            self.hand.grip(waiting=False)
-        elif self.hand_name == "onrobot_vgc10":
-            self.hand.grip(waiting=False, vacuumA=80,  vacuumB=80)
+        # if self.hand_name == "onrobot_2fg7":
+        #     # NOTE: 呼ぶ度に目標の把持力は変更できるので
+        #     # VRコントローラーからの入力で動的に把持力を
+        #     # 変えることもできる (どういう仕組みを作るかは別)
+        #     self.hand.grip(waiting=False)
+        # elif self.hand_name == "onrobot_vgc10":
+        #     self.hand.grip(waiting=False, vacuumA=80,  vacuumB=80)
+        self.robot.toolDo(1,1)
     
     def send_release(self) -> None:
-        if self.hand_name == "onrobot_2fg7":
-            # NOTE: 呼ぶ度に目標の把持力は変更できるので
-            # VRコントローラーからの入力で動的に把持力を
-            # 変えることもできる (どういう仕組みを作るかは別)
-            self.hand.release(waiting=False)
-        elif self.hand_name == "onrobot_vgc10":
-            self.hand.release(waiting=False)
+        # if self.hand_name == "onrobot_2fg7":
+        #     # NOTE: 呼ぶ度に目標の把持力は変更できるので
+        #     # VRコントローラーからの入力で動的に把持力を
+        #     # 変えることもできる (どういう仕組みを作るかは別)
+        #     self.hand.release(waiting=False)
+        # elif self.hand_name == "onrobot_vgc10":
+        #     self.hand.release(waiting=False)
+        self.robot.toolDo(1,0)
 
     def enable(self) -> None:
         try:
-            self.robot.enable_robot(ext_speed=speed_normal)
+            self.robot.enable_robot()
         except Exception as e:
             self.logger.error("Error enabling robot")
             self.logger.error(f"{self.robot.format_error(e)}")
@@ -880,7 +850,7 @@ class Nova2_CON:
 
     def tidy_pose(self) -> None:
         try:
-            self.robot.move_joint_until_completion(self.tidy_joint)
+            self.robot.move_joint_until_completion(self.tidy_joint) #共有メモリ越しでなく直で現在角度を受け取りながら制御するため同プロセスでポートに繋ぐ前提．dashPort, feedbackPortで角度は取得可能
         except Exception as e:
             self.logger.error("Error moving to tidy pose")
             self.logger.error(f"{self.robot.format_error(e)}")
@@ -917,12 +887,6 @@ class Nova2_CON:
         # self.pose[14]は0のとき必ず通常モード。
         # self.pose[14]は1のとき基本的にスレーブモードだが、
         # 変化前後の短い時間は通常モードの可能性がある。
-        # 順番固定
-        self.robot.leave_servo_mode()
-        while True:
-            if not self.robot.is_in_servo_mode():
-                break
-            time.sleep(0.008)
         self.pose[14] = 0
 
     def control_loop_w_recover_automatic(self) -> bool:
@@ -951,22 +915,6 @@ class Nova2_CON:
                     self.pose[16] = 0
                     return False
 
-                # 必ずスレーブモードから抜ける
-                try:
-                    self.leave_servo_mode()
-                except Exception as e_leave:
-                    self.logger.error("Error leaving servo mode")
-                    self.logger.error(f"{self.robot.format_error(e_leave)}")
-                    # タイムアウトの場合はスレーブモードは切れているので
-                    # 共有メモリを更新する
-                    if ((type(e_leave) is ORiNException and
-                        e_leave.hresult == HResult.E_TIMEOUT) or
-                        (type(e_leave) is not ORiNException)):
-                        self.pose[14] = 0
-                    # それ以外は原因不明なのでループは抜ける
-                    else:
-                        self.pose[16] = 0
-                        return False
 
                 # 非常停止ボタンの状態値を最新にするまで待つ必要がある
                 time.sleep(1)
@@ -977,77 +925,80 @@ class Nova2_CON:
                     return False
 
                 # タイムアウトの場合は接続からやり直す
-                if ((type(e) is ORiNException and
-                    e.hresult == HResult.E_TIMEOUT) or
-                   (type(e) is not ORiNException)):
-                        for i in range(1, 11):
-                            try:
-                                self.robot.start()
-                                self.robot.clear_error()
+                # if ((type(e) is ORiNException and
+                #     e.hresult == HResult.E_TIMEOUT) or
+                #    (type(e) is not ORiNException)):
+                #         for i in range(1, 11):
+                #             try:
+                #                 self.robot.start()
+                #                 self.robot.clear_error()
 
-                                # NOTE: タイムアウトした場合の数回に1回、
-                                # 制御権が取得できない場合がある。しかし、
-                                # このメソッドのこの例外から抜けた後に
-                                # GUIでClearError -> Enable -> StartMQTTControl
-                                # とすると制御権が取得できる。
-                                # ここで制御権を取得しても、GUIから制御権を取得しても
-                                # 内部的には同じ関数を呼んでいるので原因不明
-                                # (ソケットやbCAPClientのidが両者で同じことも確認済み)
-                                # 0. 元
-                                self.robot.take_arm()
-                                # 1. ここをイネーブルにしても変わらない
-                                # self.robot.enable_robot(ext_speed=speed_normal)
-                                # 2. manual_resetを追加しても変わらない
-                                # self.robot.manual_reset()
-                                # self.robot.take_arm()
-                                # 3. 待っても変わらない
-                                # time.sleep(5)
-                                # self.robot.take_arm()
-                                # time.sleep(5)
+                #                 # NOTE: タイムアウトした場合の数回に1回、
+                #                 # 制御権が取得できない場合がある。しかし、
+                #                 # このメソッドのこの例外から抜けた後に
+                #                 # GUIでClearError -> Enable -> StartMQTTControl
+                #                 # とすると制御権が取得できる。
+                #                 # ここで制御権を取得しても、GUIから制御権を取得しても
+                #                 # 内部的には同じ関数を呼んでいるので原因不明
+                #                 # (ソケットやbCAPClientのidが両者で同じことも確認済み)
+                #                 # 0. 元
+                #                 # self.robot.take_arm()
+                #                 # 1. ここをイネーブルにしても変わらない
+                #                 # self.robot.enable_robot(ext_speed=speed_normal)
+                #                 # 2. manual_resetを追加しても変わらない
+                #                 # self.robot.manual_reset()
+                #                 # self.robot.take_arm()
+                #                 # 3. 待っても変わらない
+                #                 # time.sleep(5)
+                #                 # self.robot.take_arm()
+                #                 # time.sleep(5)
 
-                                self.find_and_setup_hand(self.tool_id)
-                                self.logger.info(
-                                    "Reconnected to robot successfully"
-                                    " after timeout")
-                                break
-                            except Exception as e_reconnect:
-                                self.logger.error(
-                                    "Error in reconnecting robot")
-                                self.logger.error(
-                                    f"{self.robot.format_error(e_reconnect)}")
-                                if i == 10:
-                                    self.logger.error(
-                                        "Failed to reconnect robot after"
-                                        " 10 attempts")
-                                    self.pose[16] = 0
-                                    return False
-                            time.sleep(1)
+                #                 self.logger.info(
+                #                     "Reconnected to robot successfully"
+                #                     " after timeout")
+                #                 break
+                #             except Exception as e_reconnect:
+                #                 self.logger.error(
+                #                     "Error in reconnecting robot")
+                #                 self.logger.error(
+                #                     f"{self.robot.format_error(e_reconnect)}")
+                #                 if i == 10:
+                #                     self.logger.error(
+                #                         "Failed to reconnect robot after"
+                #                         " 10 attempts")
+                #                     self.pose[16] = 0
+                #                     return False
+                #             time.sleep(1)
+                
                 # ここまでに接続ができている場合
-                try:
-                    errors = self.robot.get_cur_error_info_all()
-                    self.logger.error(f"Errors in teach pendant: {errors}")
-                    # 自動復帰可能エラー
-                    if self.robot.are_all_errors_stateless(errors):
-                        # 自動復帰を試行。失敗またはエラーの場合は通常モードに戻る。
-                        # エラー直後の自動復帰処理に失敗しても、
-                        # 同じ復帰処理を手動で行うと成功することもあるので
-                        # 手動で操作が可能な状態に戻す
-                        ret = self.robot.recover_automatic_enable()
-                        if not ret:
-                            raise ValueError(
-                                "Automatic recover failed in enable timeout")
-                        self.logger.info("Automatic recover succeeded")                    
-                    # 自動復帰不可能エラー
-                    else:
-                        self.logger.error(
-                            "Error is not automatically recoverable")
-                        self.pose[16] = 0
-                        return False
-                except Exception as e_recover:
-                    self.logger.error("Error during automatic recover")
-                    self.logger.error(f"{self.robot.format_error(e_recover)}")
-                    self.pose[16] = 0
-                    return False
+                # try:
+                #     errors = self.robot.get_cur_error_info_all() ##ポートに接続していないからおそらくerrorを見に行けない
+                #     self.logger.error(f"Errors in teach pendant: {errors}")
+                #     # 自動復帰可能エラー
+                #     if self.robot.are_all_errors_stateless(errors):
+                #         # 自動復帰を試行。失敗またはエラーの場合は通常モードに戻る。
+                #         # エラー直後の自動復帰処理に失敗しても、
+                #         # 同じ復帰処理を手動で行うと成功することもあるので
+                #         # 手動で操作が可能な状態に戻す
+                #         ret = self.robot.recover_automatic_enable()
+                #         if not ret:
+                #             raise ValueError(
+                #                 "Automatic recover failed in enable timeout")
+                #         self.logger.info("Automatic recover succeeded")                    
+                #     # 自動復帰不可能エラー
+                #     else:
+                #         self.logger.error(
+                #             "Error is not automatically recoverable")
+                #         self.pose[16] = 0
+                #         return False
+                # except Exception as e_recover:
+                #     self.logger.error("Error during automatic recover")
+                #     self.logger.error(f"{self.robot.format_error(e_recover)}")
+                #     self.pose[16] = 0
+                #     return False
+
+                self.pose[16] = 0
+                return False
 
 
     def mqtt_control_loop(self) -> None:
@@ -1058,46 +1009,13 @@ class Nova2_CON:
             # 停止するのは、ユーザーが要求した場合か、自然に内部エラーが発生した場合
             success_stop = self.control_loop_w_recover_automatic()
             # 停止フラグが成功の場合は、ユーザーが要求した場合のみありうる
-            next_tool_id = self.pose[17].copy()
-            put_down_box = self.pose[21].copy()
-            line_cut = self.pose[38].copy()
+            # next_tool_id = self.pose[17].copy()
+            # put_down_box = self.pose[21].copy()
+            # line_cut = self.pose[38].copy()
             change_log_file = self.pose[33].copy()
             if success_stop:
-                # ツールチェンジが要求された場合
-                if next_tool_id != 0:
-                    self.logger.info(
-                        f"User required tool change to: {next_tool_id}")
-                    # ツールチェンジに成功した場合は、ループを継続し
-                    # 失敗した場合は、ループを抜ける
-                    try:
-                        self.tool_change(next_tool_id)
-                        # NOTE: より良い方法がないか
-                        # VRアニメーションがロボットの動きに追従し終わるのを待つ
-                        time.sleep(3)
-                        self.pose[18] = 1
-                        self.pose[17] = 0
-                        # VRのIKで解いた関節角度にロボットの関節角度を合わせるのを待つ
-                        time.sleep(3)
-                        self.logger.info("Tool change succeeded")
-                    except Exception as e:
-                        self.logger.error("Error during tool change")
-                        self.logger.error(f"{self.robot.format_error(e)}")
-                        self.pose[18] = 2
-                        self.pose[17] = 0
-                        break
-                # 棚の上の箱を置くことが要求された場合
-                elif put_down_box != 0:
-                    self.logger.info("User required put down box")
-                    # 成功しても失敗してもループを継続する (ツールを変えることによる
-                    # 予測できないエラーは起こらないため)
-                    self.demo_put_down_box()
-                elif line_cut != 0:
-                    self.logger.info("User required line cut")
-                    # 成功しても失敗してもループを継続する (ツールを変えることによる
-                    # 予測できないエラーは起こらないため)
-                    self.line_cut()
                 # ログファイルを変更することが要求された場合
-                elif change_log_file != 0:
+                if change_log_file != 0:
                     self.logger.info("User required change log file")
                     # ログファイルを変更する
                     self.get_logging_dir_and_change_log_file()
@@ -1107,22 +1025,7 @@ class Nova2_CON:
             # 停止フラグが失敗の場合は、ユーザーが要求した場合か、
             # 自然に内部エラーが発生した場合
             else:
-                # ツールチェンジが要求された場合
-                if next_tool_id != 0:
-                    # 要求コマンドのみリセット
-                    self.pose[18] = 2
-                    self.pose[17] = 0
-                # 棚の上の箱を置くことが要求された場合
-                elif put_down_box != 0:
-                    # 要求コマンドのみリセット
-                    self.pose[22] = 2
-                    self.pose[21] = 0
-                elif line_cut != 0:
-                    # 要求コマンドのみリセット
-                    self.pose[39] = 2
-                    self.pose[38] = 0
-                # ループを抜ける
-                elif change_log_file != 0:
+                if change_log_file != 0:
                     # 要求コマンドのみリセット
                     self.pose[33] = 0
                 break
@@ -1292,159 +1195,6 @@ class Nova2_CON:
             self.logger.error("Error during TCP jog")
             self.logger.error(f"{self.robot.format_error(e)}")
 
-    def demo_put_down_box(self) -> None:
-        """
-        デモ用に棚の上の箱を作業台に下ろす動き
-        ロボットと棚の上の箱の位置関係上、ロボットの特異姿勢（ひじ、手首特異姿勢）
-        が集まっており、それらをかいくぐってなんとか下ろすようにしている
-        したがって棚の上の箱の位置はほぼ同じ位置にあることを前提とする
-        この関数を呼ぶ前に、ロボットの先端のホルダーを棚の上の箱に引っ掛けておく
-        """
-        try:
-            if self.tool_id != 4:
-                raise ValueError("Tool is not the box holder")
-
-            use_pre_automatic_move = True
-            if use_pre_automatic_move:
-                # 現状はホルダーへのツールチェンジ後の箱の少し手前の位置から、
-                # 箱の位置へと自動で移動するようにしている
-                # 本当は手動で移動させたほうが想定に近いが、
-                # 手動またはTCP制御で移動しようとすると、関節2より関節3が先に動き、
-                # ひじ特異姿勢に近くなるため、このようにしている
-
-                # ホルダーへのツールチェンジ後の、VRと同期可能な肘を下げた姿勢から、
-                # VRと同期不可能な肘を上げた姿勢に、箱から離れた位置で移動する
-                # pose = [-302.96, -400.32, 831.60, -46.90, 88.37, -136.46]
-                self.robot.move_joint(
-                    [-123.41, -2.78, 60.32, -127.61, -44.68, 136.85]
-                )
-
-                # 軌跡を直線的に保つため段階に分けて関節制御のまま箱に近づける
-                # pose = [-302.92, -560.30, 830.96, -49.35, 88.43, -138.85]
-                self.robot.move_joint(
-                    [-110.01, 11.00, 48.76, -142.45, -35.12, 147.03]
-                )
-
-                # 軌跡を直線的に保つため段階に分けて関節制御のまま箱にさらに近づける
-                # ここから箱の位置へと自動で移動する
-                # TCP制御 (これではひじ特異姿勢に近くなる)
-                # self.robot.move_pose(
-                #     [-302.92, -660.89, 830.96, -49.35, 88.43, -138.84],
-                #     interpolation=2, fig=-2
-                # )
-                # かわりに関節制御する (衝突しないことを確認済み)
-                self.robot.ext_speed(5)
-                self.robot.move_joint(
-                    [-105.27, 22.47, 35.35, -151.32, -34.53, 154.84]
-                )
-                self.robot.ext_speed(speed_normal)
-
-            # この関数を呼ぶ前にホルダーを箱に引っ掛けておく
-            # 棚の上の箱はおおよそこの位置にあることを前提とする
-            target = [-302.92, -660.89, 830.96, -49.35, 88.43, -138.84]
-            ranges = [
-                ("X", 0, target[0] - 50, target[0] + 50),
-                ("Y", 1, target[1] - 50, target[1] + 50),
-                ("Z", 2, target[2] - 20, target[2] + 80),
-            ]
-            state = self.robot.get_current_pose()
-            violations = []
-            for label, idx, low, high in ranges:
-                if not (low < state[idx] < high):
-                    violations.append(
-                        f"{label}: {state[idx]:.2f} "
-                        f"(required: {low:.2f} < {label} < {high:.2f})")
-            if violations:
-                msg = "Position out of range:\n" + "\n".join(violations)
-                raise ValueError(msg)
-            # 箱を持ち上げる
-            up_state = state.copy()
-            up_state[2] += 50
-            # 形態1
-            # 直線移動、形態一定で移動する
-            self.robot.ext_speed(5)
-            self.robot.move_pose(up_state, interpolation=2, fig=-2)
-            self.robot.ext_speed(speed_normal)
-            # 箱を棚から出す
-            self.robot.move_pose(
-                [-302.97, -140.75, 885.68, -49.70, 88.44, -139.19],
-                interpolation=2, fig=-2
-            )
-            # 形態が変わる場所はPTPで移動する
-            # 形態5
-            self.robot.move_pose(
-                [-302.97, -135.03, 885.67, -49.70, 88.44, -139.19],
-                interpolation=1, fig=-3
-            )
-            # 形態69
-            self.robot.move_pose(
-                [-302.87, -131.23, 885.66, -49.75, 88.45, -139.24],
-                interpolation=1, fig=-3
-            )
-            self.robot.move_pose(
-                [-302.97, -22.83, 885.52, -49.60, 88.44, -139.09],
-                interpolation=2, fig=-2
-            )
-            # 箱を作業台の真上に移動させる
-            self.robot.move_pose(
-                [-457.80, -22.82, 885.51, -49.58, 88.45, -139.08],
-                interpolation=2, fig=-2
-            )
-            # 作業台の上に箱を下ろす
-            self.robot.move_pose(
-                [-457.80, -22.67, 543.43, -49.78, 88.45, -139.27],
-                interpolation=2, fig=-2
-            )
-            # 形態65
-            self.robot.move_pose(
-                [-457.80, -22.66, 531.33, -49.83, 88.46, -139.31],
-                interpolation=1, fig=-3
-            )
-            # 作業台にはゆっくりと着地させる
-            self.robot.move_pose(
-                [-457.80, -22.82, 89.16, -49.58, 88.45, -139.07],
-                interpolation=2, fig=-2
-            )
-            self.robot.ext_speed(5)
-            self.robot.move_pose(
-                [-457.80, -22.82, 39.16, -49.58, 88.45, -139.07],
-                interpolation=2, fig=-2
-            )
-            self.robot.ext_speed(speed_normal)
-            # 箱からホルダーを抜く
-            self.robot.move_pose(
-                [-457.80, 15.20, 39.16, -49.58, 88.45, -139.07],
-                interpolation=2, fig=-2
-            )
-            # ホルダーを上に引き上げる
-            self.robot.move_pose(
-                [-457.80, 15.20, 459.68, -49.58, 88.45, -139.05],
-                interpolation=2, fig=-2
-            )
-            # ツール先端を下方向に向ける
-            self.robot.move_pose(
-                [-457.81, 15.20, 459.67, -178.82, 0.04, 90.50],
-                interpolation=1, fig=-3
-            )
-            # ほぼ同じツール姿勢だが、VRのIKで解いた場合の関節角度に
-            # 合わせる (箱下ろし完了後のVR手動操作で合わせるとユーザーが驚くため)
-            # 制限値から遠い姿勢にする
-            self.robot.move_joint(
-                [-195.56, -1.43, 89.37, -0.53, 91.64, 249.77 - 360]
-            )
-            # NOTE: より良い方法がないか
-            # VRアニメーションがロボットの動きに追従し終わるのを待つ
-            time.sleep(3)
-            self.pose[22] = 1
-            # VRのIKで解いた関節角度にロボットの関節角度を合わせるのを待つ
-            time.sleep(3)
-        except Exception as e:
-            self.logger.error("Error during demo put down box")
-            self.logger.error(f"{self.robot.format_error(e)}")
-            self.pose[22] = 2
-        finally:
-            self.pose[21] = 0
-
     def setup_logger(self, log_queue):
         self.logger = logging.getLogger("CTRL")
         if log_queue is not None:
@@ -1470,354 +1220,6 @@ class Nova2_CON:
     def change_log_file(self, logging_dir: str) -> None:
         self.logging_dir = logging_dir
         self.pose[33] = 0
-
-    def _line_cut_impl_1(self) -> None:
-        current_pose = self.robot.get_current_pose()
-        offset = [400, 0, 0, 0, 0, 0]
-        x, y, z, rx, ry, rz, fig = current_pose + [-1]
-        current_pose_pd = f"P({x}, {y}, {z}, {rx}, {ry}, {rz}, {fig})"
-        x, y, z, rx, ry, rz, fig = offset + [-1]
-        offset_pd = f"P({x}, {y}, {z}, {rx}, {ry}, {rz}, {fig})"
-        # ツール座標系で指定したオフセットを足し合わせる
-        goal = self.robot.DevH(current_pose_pd, offset_pd)
-        x, y, z, rx, ry, rz, fig = goal
-        goal_pd = f"P({x}, {y}, {z}, {rx}, {ry}, {rz}, {fig})"
-        # 目的地が移動可能エリア内か確認する
-        is_out_range = self.robot.OutRange(goal_pd)
-        if is_out_range != 0:
-            raise ValueError(
-                f"Goal is out of range. is_out_range: {is_out_range}")
-        else:
-            values = []
-            for value_str in goal_pd.strip("P()").split(","):
-                value_str = value_str.strip()
-                value = float(value_str)
-                values.append(value)
-            x, y, z, rx, ry, rz, fig = values
-            self.robot.move_pose(
-                [x, y, z, rx, ry, rz], interpolation=2, fig=-2)
-
-    def _line_cut_impl_2(self) -> None:
-        # ロボットのある作業台と反対側に、箱を置き、その左上の辺をアームの奥から手前側に切る
-        # 前提の動き
-        # VRでおおまかな位置を合わせておくこと
-        current_pose = self.robot.get_current_pose()
-        # ベース座標系のグリッドに沿った位置に合わせる
-        near_line_start_pose = current_pose.copy()
-        near_line_start_pose[3] = -180
-        near_line_start_pose[4] = 0
-        near_line_start_pose[5] = 0
-        self.robot.move_pose(near_line_start_pose, interpolation=1, fig=-3)
-        # 箱に接触するまで位置を調整する
-        # 力センサの値がおかしい場合は手動モードでダイレクトティーチングすれば正しくなる
-        # TODO: y軸方向に接触した後に、z軸方向に接触するように動かすと、
-        # y軸方向の力は同じままではなく一般的には大きくなり強い力がかかる恐れがある
-        # TODO: 箱をテープで止めるのでは不十分
-        import copy
-        line_start_pose = copy.deepcopy(near_line_start_pose)
-        old_forces = self.robot.ForceValue()
-        self.logger.info(f"Old forces: {old_forces}")
-        dy = 0
-        dz = 0
-        cnt = 0
-        while True:
-            cnt += 1
-            if cnt > 500:
-                break
-            forces = self.robot.ForceValue()
-            y_not_touched = abs(forces[1] - old_forces[1]) < 5
-            z_not_touched = abs(forces[2] - old_forces[2]) < 5
-            y_bumped = abs(forces[1] - old_forces[1]) > 10
-            z_bumped = abs(forces[2] - old_forces[2]) > 10
-            y_touched = (not y_not_touched) and (not y_bumped)
-            z_touched = (not z_not_touched) and (not z_bumped)
-            if (y_touched and z_touched) or (dy > 50) or (dz < -50):
-                self.logger.info(f"New forces: {forces}, y_touched: {y_touched}, z_touched: {z_touched}, dy: {dy}, dz: {dz}")
-                break
-            if y_not_touched:
-                dy += 0.1
-            if z_not_touched:
-                dz -= 0.1
-            if y_bumped:
-                dy -= 0.1
-            if z_bumped:
-                dz += 0.1
-            line_start_pose[1] = near_line_start_pose[1] + dy
-            line_start_pose[2] = near_line_start_pose[2] + dz
-            self.robot.move_pose(line_start_pose, interpolation=2, fig=-2)
-        if (dy > 50) or (dz < -50) or (cnt > 500):
-            raise ValueError("Failed to touch the line")
-
-        raise ValueError("Done")
-
-        current_pose = line_start_pose
-        offset = [400, 0, 0, 0, 0, 0]
-        # 以降_line_cut_impl_1とDevH以外同じ
-        x, y, z, rx, ry, rz, fig = current_pose + [-1]
-        current_pose_pd = f"P({x}, {y}, {z}, {rx}, {ry}, {rz}, {fig})"
-        x, y, z, rx, ry, rz, fig = offset + [-1]
-        offset_pd = f"P({x}, {y}, {z}, {rx}, {ry}, {rz}, {fig})"
-        # ツール座標系で指定したオフセットを足し合わせる
-        goal = self.robot.Dev(current_pose_pd, offset_pd)
-        x, y, z, rx, ry, rz, fig = goal
-        goal_pd = f"P({x}, {y}, {z}, {rx}, {ry}, {rz}, {fig})"
-        # 目的地が移動可能エリア内か確認する
-        is_out_range = self.robot.OutRange(goal_pd)
-        if is_out_range != 0:
-            raise ValueError(
-                f"Goal is out of range. is_out_range: {is_out_range}")
-        else:
-            values = []
-            for value_str in goal_pd.strip("P()").split(","):
-                value_str = value_str.strip()
-                value = float(value_str)
-                values.append(value)
-            x, y, z, rx, ry, rz, fig = values
-            self.robot.move_pose(
-                [x, y, z, rx, ry, rz], interpolation=2, fig=-2)
-
-    def get_stable_forces(self, n_sample: int = 10) -> List[float]:
-        """力センサ値のノイズを減らした値を返す"""
-        raw_forces = []
-        for _ in range(n_sample):
-            time.sleep(0.008)
-            raw_force = self.robot.ForceValue()
-            raw_forces.append(raw_force)
-        raw_force = np.median(np.array(raw_forces), axis=0).tolist()
-        return raw_force
-
-    def _adjust_1d(
-        self,
-        pose: List[float],
-        baseline_forces: List[float],
-        index: int,
-        box_direction: int,
-        dist_min: int,
-        dist_max: int,
-        force_lim: int = 5,
-    ) -> bool:
-        """ある軸方向に接触するまで位置を調整する"""
-        dist = 0
-        dist_step = 5
-        max_trial = 50
-        trial = 0
-        baseline_force = baseline_forces[index]
-        move_pose = pose.copy()
-        # 一度接触するまでは大きなステップで動かす
-        touched_before = False
-        while True:
-            if trial >= max_trial:
-                return False
-            raw_force = self.get_stable_forces()[index]
-            force = abs(raw_force - baseline_force)
-            # 力が弱い場合はそのまま進む
-            if force < force_lim:
-                dist += dist_step * box_direction
-            else:
-                # 一度接触したら戻して、ステップを小さくして2回目の接触まで調整する
-                if not touched_before:
-                    dist_step = 1
-                    dist -= dist_step * box_direction
-                    touched_before = True
-                else:
-                    # ある軸方向に接触している時、他の軸にも力がかかるので、
-                    # 1mmだけ戻して接触を弱めておき、他の軸は他の軸で調整できるようにする
-                    dist_step = 1
-                    dist -= dist_step * box_direction
-                    pose[index] = move_pose[index] + dist
-                    self.robot.move_pose(pose, interpolation=2, fig=-2)
-                    return True
-            if dist < dist_min:
-                return False
-            if dist > dist_max:
-                return False
-            pose[index] = move_pose[index] + dist
-            self.robot.move_pose(pose, interpolation=2, fig=-2)
-
-    def _line_straight_cut(self, offset) -> None:
-        current_pose = self.robot.get_current_pose()
-        # 以降_line_cut_impl_1とDevH以外同じ
-        x, y, z, rx, ry, rz, fig = current_pose + [-1]
-        current_pose_pd = f"P({x}, {y}, {z}, {rx}, {ry}, {rz}, {fig})"
-        x, y, z, rx, ry, rz, fig = offset + [-1]
-        offset_pd = f"P({x}, {y}, {z}, {rx}, {ry}, {rz}, {fig})"
-        # ツール座標系で指定したオフセットを足し合わせる
-        goal = self.robot.Dev(current_pose_pd, offset_pd)
-        x, y, z, rx, ry, rz, fig = goal
-        goal_pd = f"P({x}, {y}, {z}, {rx}, {ry}, {rz}, {fig})"
-        # 目的地が移動可能エリア内か確認する
-        is_out_range = self.robot.OutRange(goal_pd)
-        if is_out_range != 0:
-            raise ValueError(
-                f"Goal is out of range. is_out_range: {is_out_range}")
-        else:
-            values = []
-            for value_str in goal_pd.strip("P()").split(","):
-                value_str = value_str.strip()
-                value = float(value_str)
-                values.append(value)
-            x, y, z, rx, ry, rz, fig = values
-            self.robot.move_pose(
-                [x, y, z, rx, ry, rz], interpolation=2, fig=-2)
-
-    def _line_cut_impl_3(self) -> None:
-        """ロボットの存在する作業台上の箱を4方向から切る"""
-        # 箱はベース座標系に並行に置かれていることを前提とする
-        # 位置関係
-        #  アーム
-        #    |
-        # c1----c4
-        # |  　  |
-        # |  箱  |
-        # |  　  |
-        # c2----c3
-        # 箱の4角と、各角に対応するアーム先端の中心位置を一致させて、
-        # c1, c2, c3, c4とする
-        # c4-c1辺、c3-c4辺は完全に固定
-        # c1-c2辺、c2-c3辺は万力で動的に固定
-        # c4 -> c1 -> c2 -> c3の順にカットするのが望ましい
-        # (カットの後半ほど箱が歪みやすいため、
-        # カットの後半はカットで進む方向が完全に固定されている方向が望ましいため)
-        # c4-c1辺をカットするには、この辺のx >= 359.95であれば
-        # ロボットの姿勢の制限なくカットできることを確認している
-        # （もう少し小さくてもOKかもしれないが）
-        # 現状の力制御では、
-        # カッターは斜め上からではなく斜め下から刃を入れることが望ましい
-        # 箱の天板は凸より凹に歪んでいることが望ましい
-        # 辺はテープなどで補強した方が良い
-
-        ## パラメータ
-        # 箱の長さ
-        # 天然水のダンボール用に更新
-        box_length_c4c1 = 315
-        box_length_c1c2 = 312
-        # カッターは箱の長さよりも先に進む必要があるため、その長さ
-        buffer_length = 115
-        # c4から位置を決める場合
-        # 最初のカットを行う角における関節角度。角とアーム先端の中心位置は高さを除き
-        # ぴったり合わせておく
-        # 長軸方向の位置は力制御では検出できないので座標で合わせるしかない
-        # c4_true = [359.95, 137.72, 156.89, -180.0, 0.0, 270.0]
-        c4_true = [346.89, 143.87, 106.61, -180.0, 0.0, -90]
-        # c1, c2, c3, c4の近くで、箱の外側に位置する点
-        # ここからカットする辺に向かって力制御で接触させる
-        c1_near_offset = np.array([0, -5, 10, 0, 0, 0]).tolist()
-        c2_near_offset = np.array([20, 0, 10, 0, 0, 0]).tolist()
-        c3_near_offset = np.array([0, 20, 10, 0, 0, 0]).tolist()
-        c4_near_offset = np.array([-15, 0, 10, 0, 0, 0]).tolist()
-
-        ## パラメータから制御値の算出
-        up_offset = np.array([0, 0, 50, 0, 0, 0]).tolist()
-        c4 = c4_true.copy()
-        c4_near = (np.array(c4) + np.array(c4_near_offset)).tolist()
-        c4_near_up = (np.array(c4_near) + np.array(up_offset)).tolist()
-        c1 = (np.array(c4) + np.array([0, -box_length_c4c1, 0, 0, 0, 90])).tolist()
-        c1_near = (np.array(c1) + np.array(c1_near_offset)).tolist()
-        c1_near_up = (np.array(c1_near) + np.array(up_offset)).tolist()
-        c2 = (np.array(c1) + np.array([box_length_c1c2, 0, 0, 0, 0, 90])).tolist()
-        c2_near = (np.array(c2) + np.array(c2_near_offset)).tolist()
-        c2_near_up = (np.array(c2_near) + np.array(up_offset)).tolist()
-        c3 = (np.array(c2) + np.array([0, box_length_c4c1, 0, 0, 0, 90])).tolist()
-        c3_near = (np.array(c3) + np.array(c3_near_offset)).tolist()
-        c3_near_up = (np.array(c3_near) + np.array(up_offset)).tolist()
-        # カッターが進む長さ
-        cut_length_c4c1 = box_length_c4c1 + buffer_length
-        cut_length_c1c2 = box_length_c1c2 + buffer_length
-
-        mode = "all"
-        if mode == "all":
-            # 元の位置
-            joint = self.robot.get_current_joint()
-            self.robot.move_pose(c4_near_up, interpolation=1, fig=-3)
-            c4_near_up_joint = self.robot.get_current_joint()
-            if c4_near_up_joint[5] < 0:
-                c4_near_up_joint[5] += 360
-            self.robot.move_joint(c4_near_up_joint)
-            self._cut_c4_to_c1(c4_near, cut_length_c4c1, force_lim=3)
-            self._cut_c1_to_c2(c1_near, cut_length_c1c2, force_lim=5)
-            self._cut_c2_to_c3(c2_near, cut_length_c4c1, force_lim=3)
-            self._cut_c3_to_c4(c3_near, cut_length_c1c2, force_lim=5)
-            # カット終了後は上に引き上げる
-            pose = self.robot.get_current_pose()
-            pose[2] += 50
-            self.robot.move_pose(pose, interpolation=1, fig=-3)
-            # 元の位置に戻す
-            self.robot.move_joint(joint)
-        elif mode == "c1_to_c2":
-            self.robot.move_pose(c1_near_up, interpolation=1, fig=-3)
-            self._cut_c1_to_c2(c1_near, cut_length_c1c2, force_lim=5)
-        elif mode == "c2_to_c3":
-            self.robot.move_pose(c2_near_up, interpolation=1, fig=-3)
-            self._cut_c2_to_c3(c2_near, cut_length_c4c1, force_lim=3)
-        elif mode == "c3_to_c4":
-            self.robot.move_pose(c3_near_up, interpolation=1, fig=-3)
-            self._cut_c3_to_c4(c3_near, cut_length_c1c2, force_lim=5)
-        elif mode == "c4_to_c1":
-            self.robot.move_pose(c4_near_up, interpolation=1, fig=-3)
-            self._cut_c4_to_c1(c4_near, cut_length_c4c1, force_lim=3)
-        else:
-            raise ValueError("Unknown line cut mode")
-
-    def _cut_c1_to_c2(self, pose_near, cut_length, force_lim) -> None:
-        self.robot.ForceSensor()
-        baseline_forces = self.get_stable_forces()
-        self.robot.move_pose(pose_near, interpolation=1, fig=-3)
-        if not self._adjust_1d(pose_near, baseline_forces, 2, -1, -100, 25):
-            raise ValueError("Failed to adjust z axis")
-        if not self._adjust_1d(pose_near, baseline_forces, 1, 1, -50, 25, force_lim=force_lim):
-            raise ValueError("Failed to adjust y axis")
-        self._line_straight_cut([cut_length, 0, 0, 0, 0, 0])
-
-    def _cut_c2_to_c3(self, pose_near, cut_length, force_lim) -> None:
-        self.robot.ForceSensor()
-        baseline_forces = self.get_stable_forces()
-        self.robot.move_pose(pose_near, interpolation=1, fig=-3)
-        if not self._adjust_1d(pose_near, baseline_forces, 2, -1, -100, 25):
-            raise ValueError("Failed to adjust z axis")
-        if not self._adjust_1d(pose_near, baseline_forces, 0, -1, -50, 25, force_lim=force_lim):
-            raise ValueError("Failed to adjust x axis")
-        self._line_straight_cut([0, cut_length, 0, 0, 0, 0])
-
-    def _cut_c3_to_c4(self, pose_near, cut_length, force_lim) -> None:
-        self.robot.ForceSensor()
-        baseline_forces = self.get_stable_forces()
-        self.robot.move_pose(pose_near, interpolation=1, fig=-3)
-        if not self._adjust_1d(pose_near, baseline_forces, 2, -1, -100, 25):
-            raise ValueError("Failed to adjust z axis")
-        if not self._adjust_1d(pose_near, baseline_forces, 1, -1, -50, 25, force_lim=force_lim):
-            raise ValueError("Failed to adjust y axis")
-        self._line_straight_cut([-cut_length, 0, 0, 0, 0, 0])
-
-    def _cut_c4_to_c1(self, pose_near, cut_length, force_lim) -> None:
-        self.robot.ForceSensor()
-        baseline_forces = self.get_stable_forces()
-        self.robot.move_pose(pose_near, interpolation=1, fig=-3)
-        if not self._adjust_1d(pose_near, baseline_forces, 2, -1, -100, 25):
-            raise ValueError("Failed to adjust z axis")
-        if not self._adjust_1d(pose_near, baseline_forces, 0, 1, -25, 50, force_lim=force_lim):
-            raise ValueError("Failed to adjust y axis")
-        self._line_straight_cut([0, -cut_length, 0, 0, 0, 0])
-
-    def line_cut(self) -> None:
-        try:
-            if self.tool_id != 3:
-                raise ValueError("Tool is not the cutter")
-            line_cut_mode = 1
-            if line_cut_mode == 1:
-                # 任意の方向に切れる
-                # self._line_cut_impl_1()
-                # 特定の場所の箱の特定の方向にしか切れない
-                # self._line_cut_impl_2()
-                self._line_cut_impl_3()
-            else:
-                raise ValueError("Unknown line cut mode")
-            self.pose[39] = 1
-        except Exception as e:
-            self.logger.error("Error during line cut")
-            self.logger.error(f"{self.robot.format_error(e)}")
-            self.pose[39] = 2
-        finally:
-            self.pose[38] = 0
 
     def run_proc(self, control_pipe, slave_mode_lock, log_queue, logging_dir, control_to_archiver_queue):
         self.setup_logger(log_queue)
@@ -1850,6 +1252,8 @@ class Nova2_CON:
                     self.line_cut()
                 elif command["command"] == "clear_error":
                     self.clear_error()
+                    self.robot.get_robot_mode()
+                    self.robot.get_error_id()
                 elif command["command"] == "start_mqtt_control":
                     self.mqtt_control_loop()
                 elif command["command"] == "tool_change":
