@@ -133,16 +133,13 @@ class Nova2Robot:
             match(p):
                 case 29999:
                     ret = self.client_dash = DobotApiDashboard("192.168.5.1", 29999, self.text_log)
-                    print(ret)
                     self.logger.info("Connect dashboard port")
                 case 30003:
                     # ServoP only accepted in this port.
                     ret = self.client_move = DobotApiDashboard("192.168.5.1", 30003, self.text_log)
-                    print(ret)
                     self.logger.info("Connect motion control port")
                 case 30004:
                     ret = self.client_feed = DobotApiFeedBack("192.168.5.1", 30004,self.text_log)
-                    print(ret)
                     self.logger.info("Connect feedback port")
                 case _:
                     self.logger.warning("Unknown port")
@@ -247,7 +244,7 @@ class Nova2Robot:
         else:
             self.logger.warning("client_dash is not initialized")
     
-    # !!Nova2で使えるかは不明 Error Code Descriptions: https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#error-code-descriptions
+    # !!Nova2でも使える Error Code Descriptions: https://docs.trossenrobotics.com/dobot_cr_cobots_docs/tcpip_protocol/functions.html#error-code-descriptions
     def get_error_id(self):
         """
         Return: ErrorID,{[[id,…,id], [id], [id], [id], [id], [id], [id]]},GetErrorID();
@@ -287,7 +284,7 @@ class Nova2Robot:
         if hasattr(self, 'client_dash'):
             self.client_dash.ClearError()
         else:
-            self.logger.warning("client_dash is not initialized")
+            self.logger.warning("fail to clear error. client_dash is not initialized")
 
     # gripperでmodbusとか使わない限りはNova2では不要？
     def stop(self):

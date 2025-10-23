@@ -365,6 +365,7 @@ class Nova2_CON:
             target = state + (target - state + 180) % 360 - 180
 
             # TODO: VR側でもソフトリミットを設定したほうが良い
+            # abs_joint_soft_limitよりも10degree余裕を持たせる設計のため公式限界の+10°でconfigは設定
             target_th = np.maximum(target, -abs_joint_soft_limit)
             if (target != target_th).any():
                 self.logger.warning("target reached minimum threshold")

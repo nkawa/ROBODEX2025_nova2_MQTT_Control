@@ -316,6 +316,7 @@ class ProcessManager:
             name="Nova2-monitor")
         self.monP.start()
         self.state_monitor = True
+        print("command: start monitor")
 
     def startControl(self, logging_dir: str | None = None):
         self.ctrl = Nova2_CON()
@@ -336,6 +337,7 @@ class ProcessManager:
             name="Nova2-control-archiver")
         self.ctrl_archiverP.start()
         self.state_control = True
+        print("command: start control")
 
     def startMonitorGUI(self):
         self.monitor_guiP = Process(
