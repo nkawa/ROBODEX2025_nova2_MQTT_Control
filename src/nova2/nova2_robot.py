@@ -134,10 +134,12 @@ class Nova2Robot:
                 case 29999:
                     ret = self.client_dash = DobotApiDashboard("192.168.5.1", 29999, self.text_log)
                     self.logger.info("Connect dashboard port")
+                    print("Connect dashboard port")
                 case 30003:
                     # ServoP only accepted in this port.
                     ret = self.client_move = DobotApiDashboard("192.168.5.1", 30003, self.text_log)
                     self.logger.info("Connect motion control port")
+                    print("Connect motion control port")
                 case 30004:
                     ret = self.client_feed = DobotApiFeedBack("192.168.5.1", 30004,self.text_log)
                     self.logger.info("Connect feedback port")
@@ -212,10 +214,6 @@ class Nova2Robot:
         
     def disable(self):
         self.logger.info("disable")
-        # disableするかのチェックもしたい
-        # if self._hRob == 0 or self._bcap is None:
-        #     self.logger.warning(f"Disable undone: {self._hRob=}, {self._bcap=}")
-        #     return
         try:
             self.client_dash.DisableRobot()
         except Exception as e:

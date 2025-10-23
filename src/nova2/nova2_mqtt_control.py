@@ -317,8 +317,8 @@ class ProcessManager:
         self.monP.start()
         self.state_monitor = True
         print("command: start monitor")
-        time.sleep(0.3)
-        print("isMonitorProcessAlive", self.monP.is_alive())
+        # time.sleep(0.3)
+        # print("isMonitorProcessAlive", self.monP.is_alive())
 
     def startControl(self, logging_dir: str | None = None):
         self.ctrl = Nova2_CON()
@@ -340,8 +340,8 @@ class ProcessManager:
         self.ctrl_archiverP.start()
         self.state_control = True
         print("command: start control")
-        time.sleep(0.3)
-        print("isControlProcessAlive", self.ctrlP.is_alive())
+        # time.sleep(0.3)
+        # print("isControlProcessAlive", self.ctrlP.is_alive())
 
     def startMonitorGUI(self):
         self.monitor_guiP = Process(

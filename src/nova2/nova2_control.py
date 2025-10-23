@@ -1075,10 +1075,10 @@ class Nova2_CON:
                 if wait:
                     control_pipe.send({"status": True})
             if self.pose[32] == 1:
-                self.robot.close()
+                # self.robot.close_port()
                 self.sm.close()
                 self.control_to_archiver_queue.close()
-                time.sleep(1)
+                time.sleep(2)
                 self.logger.info("Process stopped")
                 self.handler.close()
                 self.robot_handler.close()

@@ -45,7 +45,7 @@ class Nova2_MON:
         self.robot = Nova2Robot(host=ROBOT_IP, logger=self.robot_logger, port=[30004])
 
         self.robot.start()
-        self.robot.clear_error()
+        # self.robot.clear_error()
 
 
 
@@ -304,9 +304,9 @@ class Nova2_MON:
                 if self.client is not None:
                     self.client.loop_stop()
                     self.client.disconnect()
-                self.robot.close_port()
+                # self.robot.close_port()
                 self.sm.close()
-                time.sleep(1)
+                time.sleep(2)
                 self.logger.info("Process stopped")
                 self.handler.close()
                 self.robot_handler.close()
