@@ -63,8 +63,6 @@ use_interp = True
 n_windows = 10
 if filter_kind == "original":
     n_windows = 10
-elif filter_kind == "target":
-    n_windows = 100
 if servo_mode == 0x102:
     t_intv = 0.004
 else:
@@ -285,8 +283,6 @@ class Nova2_CON:
         lock = threading.Lock()
         error_info = {}
         last_target = None
-        
-        decount = 0
 
         use_hand_thread = True
         if use_hand_thread:
@@ -420,41 +416,18 @@ class Nova2_CON:
                     self.last_control = state
                     _filter = SMAFilter(n_windows=n_windows)
                     _filter.reset(state)
-                elif filter_kind == "target":
-                    _filter = SMAFilter(n_windows=n_windows)
-                    _filter.reset(target)
-                elif filter_kind == "state_and_target_diff":
-                    self.last_control = state
-                    _filter = SMAFilter(n_windows=n_windows)
-                    _filter.reset(state)
-                elif filter_kind == "moveit_servo_humble":
-                    _filter = SMAFilter(n_windows=n_windows)
-                    _filter.reset(state)
-                elif filter_kind == "control_and_target_diff":
-                    self.last_control = state
-                    _filter = SMAFilter(n_windows=n_windows)
-                    _filter.reset(state)
-                elif filter_kind == "feedback_pd_traj":
-                    N = 6
-                    Tf = t_intv * (N - 1)
-                    method = 5
-                    Kp = 0.6
-                    Kd = 0.02
-                    prev_error = np.zeros(6)
-                    pd_step = 0
                 # 速度制限をフィルタの手前にも入れてみる
                 if True:
                     assert filter_kind in ["original", "feedback_pd_traj"]
                     self.last_target_delayed_velocity = np.zeros(6)
                 if filter_kind == "original":
                     self.last_control_velocity = np.zeros(6)
-                elif filter_kind == "feedback_pd_traj":
-                    self.last_control_velocity = np.zeros((N - 1, 6))
                 # ロボットにコマンドを送る前は、非常停止が押されているかを
                 # スレーブモードが解除されているかで確認する
                 continue
 
             if (self.last == now):
+                # dt = 0の回避
                 time.sleep(0.01)
                 continue
             sw.lap("Check stop")
@@ -519,161 +492,17 @@ class Nova2_CON:
                 # moveit servoなどでは見られない処理
                 target_filtered = _filter.predict_only(target_delayed)
                 target_diff = target_filtered - self.last_control
-            elif filter_kind == "target":
-                # 成功することもあるが平滑化窓を増やす必要あり
-                # 状態値を無視した目標値の値をロボットに送る
-                last_target_filtered = _filter.previous_filtered_measurement
-                target_filtered = _filter.filter(target_delayed)
-                target_diff = target_filtered - last_target_filtered
-            elif filter_kind == "state_and_target_diff":
-                # 失敗する
-                # 状態値に目標値の差分を足したものを平滑化する
-                # moveit servo (少なくともhumble版)ではこのようにしているが、
-                # 速度がどんどん大きくなっていって（正のフィードバック）
-                # 制限に引っかかる
-                # stateを含む移動平均を取ると、stateが速度を持つと
-                # その速度を保持し続けようとするので、そこに差分を足すと
-                # どんどん加速していくのでは。
-                # 遅延があることも影響しているかも。
-                # NOTE(20250813): targetがstateのフィードバックを受けていない場合は
-                # target_alignedは、stateとtargetが乖離するので不適切
-                target_diff = target_delayed - self.last_target_delayed
-                target_aligned = state + target_diff
-                last_target_filtered = _filter.previous_filtered_measurement
-                target_filtered = _filter.filter(target_aligned)
-                target_diff = target_filtered - last_target_filtered
-            elif filter_kind == "moveit_servo_humble":
-                # 失敗する
-                # 停止はしないがかなりゆっくり動き、目標軌跡も追従しなくなる
-                # v = (target_filtered - state) / t_intv
-                # target_filteredとstateの差は、
-                # - 制御値を送ってからその値にstateがなるまで0.1s程度の遅延があること
-                # - テストなどであらかじめ決まっているtargetを逐次送り、
-                #   targetの速度がロボットの速度制限より大きいとき、
-                #   targetがstateからどんどん離れていくこと
-                # などの理由からt_intv秒で移動できる距離以上になってしまうため
-                target_diff = target_delayed - self.last_target_delayed
-                target_aligned = state + target_diff
-                last_target_filtered = _filter.previous_filtered_measurement
-                target_filtered = _filter.filter(target_aligned)
-                target_diff = target_filtered - state
-            elif filter_kind == "control_and_target_diff":
-                # 失敗する
-                # 速度制限にひっかかり途中停止する
-                # 制御値に目標値の差分を足したものを平滑化する
-                # 上記と同様に正のフィードバック的になっている
-                # moveit_servo_mainの処理に近い
-                target_diff = target_delayed - self.last_target_delayed
-                target_aligned = self.last_control + target_diff
-                last_target_filtered = _filter.previous_filtered_measurement
-                target_filtered = _filter.filter(target_aligned)
-                target_diff = target_filtered - last_target_filtered
-            elif filter_kind == "feedback_pd_traj":
-                if pd_step == 0:
-                    error = target_delayed - state
-                    d_error = (error - prev_error) / Tf
-                    mse = np.mean(error ** 2)
-                    target_goal = state + Kp * error + Kd * d_error
-                    prev_error = error
-                    target_steps = mr.JointTrajectory(
-                        state.tolist(),
-                        target_goal.tolist(),
-                        Tf,
-                        N,
-                        method,
-                    )
-                    # 速度制限
-                    dt = t_intv
-                    # [N - 1, 6]
-                    target_diffs = np.diff(target_steps, axis=0)
-                    vs = target_diffs / dt
-                    ratios = np.abs(vs) / (speed_limit_ratio * speed_limits)[None, :]
-                    max_ratio = np.max(ratios)
-                    if max_ratio > 1:
-                        vs /= max_ratio
-
-                    # 加速度制限
-                    # [N, 6]
-                    vs_ = np.concatenate([self.last_control_velocity[[-1], :], vs], axis=0)
-                    # [N - 1, 6]
-                    as_ = np.diff(vs_, axis=0) / dt
-                    accel_ratios = np.abs(as_) / (accel_limit_ratio * accel_limits)[None, :]
-                    accel_max_ratio = np.max(accel_ratios)
-                    if accel_max_ratio > 1:
-                        as_ /= accel_max_ratio
-                    # [N - 1, 6]
-                    vs_ = vs_[0][None, :] + np.cumsum(as_, axis=0) * dt
-
-                    target_diffs_speed_limited = vs_ * dt
-                    # 速度がしきい値より小さければ静止させ無駄なドリフトを避ける
-                    # NOTE: スレーブモードを落とさないためには前の速度が十分小さいとき (しきい値は不明) 
-                    # にしか静止させてはいけない
-                    for i in range(N - 1):
-                        if np.all(target_diffs_speed_limited[i] / dt < stopped_velocity_eps):
-                            target_diffs_speed_limited[i] = np.zeros_like(
-                                target_diffs_speed_limited[i])
-                            vs_[i] = target_diffs_speed_limited[i] / dt
-
-                    # [N - 1, 6]
-                    target_steps_speed_limited = target_steps[0][None, :] + np.cumsum(vs_, axis=0) * dt
-                    self.last_control_velocity = vs_
-
-                target_step_speed_limited = target_steps_speed_limited[pd_step]
-
-                # Next step
-                pd_step += 1
-                if pd_step == N - 1:
-                    pd_step = 0
             else:
                 raise ValueError
 
             sw.lap("2nd speed limit")
-            if filter_kind != "feedback_pd_traj":
-                # 速度制限
-                dt = now - self.last
-                v = target_diff / dt
-                ratio = np.abs(v) / (speed_limit_ratio * speed_limits)
-                max_ratio = np.max(ratio)
-                if max_ratio > 1:
-                    v /= max_ratio
-                target_diff_speed_limited = v * dt
-
-                # 加速度制限
-                a = (v - self.last_control_velocity) / dt
-                accel_ratio = np.abs(a) / (accel_limit_ratio * accel_limits)
-                accel_max_ratio = np.max(accel_ratio)
-                if accel_max_ratio > 1:
-                    a /= accel_max_ratio
-                v = self.last_control_velocity + a * dt
-                target_diff_speed_limited = v * dt
-
-                # 速度がしきい値より小さければ静止させ無駄なドリフトを避ける
-                # NOTE: スレーブモードを落とさないためには前の速度が十分小さいとき (しきい値は不明) 
-                # にしか静止させてはいけない
-                if np.all(target_diff_speed_limited / dt < stopped_velocity_eps):
-                    target_diff_speed_limited = np.zeros_like(
-                        target_diff_speed_limited)
-                    v = target_diff_speed_limited / dt
-
-                self.last_control_velocity = v
 
             sw.lap("Get control")
             # 平滑化の種類による対応
             if filter_kind == "original":
                 control = self.last_control + target_diff_speed_limited
-                # 右辺の両方がNaN
                 # 登録するだけ
                 _filter.filter(control)
-            elif filter_kind == "target":
-                control = last_target_filtered + target_diff_speed_limited
-            elif filter_kind == "state_and_target_diff":
-                control = last_target_filtered + target_diff_speed_limited
-            elif filter_kind == "moveit_servo_humble":
-                control = state + target_diff_speed_limited
-            elif filter_kind == "control_and_target_diff":
-                control = last_target_filtered + target_diff_speed_limited
-            elif filter_kind == "feedback_pd_traj":
-                control = target_step_speed_limited
             else:
                 raise ValueError
 
@@ -776,23 +605,9 @@ class Nova2_CON:
         return True
 
     def send_grip(self) -> None:
-        # if self.hand_name == "onrobot_2fg7":
-        #     # NOTE: 呼ぶ度に目標の把持力は変更できるので
-        #     # VRコントローラーからの入力で動的に把持力を
-        #     # 変えることもできる (どういう仕組みを作るかは別)
-        #     self.hand.grip(waiting=False)
-        # elif self.hand_name == "onrobot_vgc10":
-        #     self.hand.grip(waiting=False, vacuumA=80,  vacuumB=80)
         self.robot.toolDo(1,1)
     
     def send_release(self) -> None:
-        # if self.hand_name == "onrobot_2fg7":
-        #     # NOTE: 呼ぶ度に目標の把持力は変更できるので
-        #     # VRコントローラーからの入力で動的に把持力を
-        #     # 変えることもできる (どういう仕組みを作るかは別)
-        #     self.hand.release(waiting=False)
-        # elif self.hand_name == "onrobot_vgc10":
-        #     self.hand.release(waiting=False)
         self.robot.toolDo(1,0)
 
     def enable(self) -> None:
