@@ -128,17 +128,21 @@ class Nova2Robot:
         # 指示値生成遅延エラーで通知される
         self.text_log = ""
         # need try
+        print("conect process to: ",self.port)
         for p in self.port:
             match(p):
                 case 29999:
-                    self.client_dash = DobotApiDashboard("192.168.5.1", 29999, self.text_log)
+                    ret = self.client_dash = DobotApiDashboard("192.168.5.1", 29999, self.text_log)
+                    print(ret)
                     self.logger.info("Connect dashboard port")
                 case 30003:
                     # ServoP only accepted in this port.
-                    self.client_move = DobotApiDashboard("192.168.5.1", 30003, self.text_log)
+                    ret = self.client_move = DobotApiDashboard("192.168.5.1", 30003, self.text_log)
+                    print(ret)
                     self.logger.info("Connect motion control port")
                 case 30004:
-                    self.client_feed = DobotApiFeedBack("192.168.5.1", 30004,self.text_log)
+                    ret = self.client_feed = DobotApiFeedBack("192.168.5.1", 30004,self.text_log)
+                    print(ret)
                     self.logger.info("Connect feedback port")
                 case _:
                     self.logger.warning("Unknown port")

@@ -283,7 +283,6 @@ class Nova2_CON:
         lock = threading.Lock()
         error_info = {}
         last_target = None
-
         use_hand_thread = True
         if use_hand_thread:
             hand_thread = threading.Thread(
@@ -422,12 +421,9 @@ class Nova2_CON:
                     self.last_target_delayed_velocity = np.zeros(6)
                 if filter_kind == "original":
                     self.last_control_velocity = np.zeros(6)
-                # ロボットにコマンドを送る前は、非常停止が押されているかを
-                # スレーブモードが解除されているかで確認する
                 continue
 
             if (self.last == now):
-                # dt = 0の回避
                 time.sleep(0.01)
                 continue
             sw.lap("Check stop")
@@ -496,6 +492,34 @@ class Nova2_CON:
                 raise ValueError
 
             sw.lap("2nd speed limit")
+            if filter_kind != "feedback_pd_traj":
+                # 速度制限
+                dt = now - self.last
+                v = target_diff / dt
+                ratio = np.abs(v) / (speed_limit_ratio * speed_limits)
+                max_ratio = np.max(ratio)
+                if max_ratio > 1:
+                    v /= max_ratio
+                target_diff_speed_limited = v * dt
+
+                # 加速度制限
+                a = (v - self.last_control_velocity) / dt
+                accel_ratio = np.abs(a) / (accel_limit_ratio * accel_limits)
+                accel_max_ratio = np.max(accel_ratio)
+                if accel_max_ratio > 1:
+                    a /= accel_max_ratio
+                v = self.last_control_velocity + a * dt
+                target_diff_speed_limited = v * dt
+
+                # 速度がしきい値より小さければ静止させ無駄なドリフトを避ける
+                # NOTE: スレーブモードを落とさないためには前の速度が十分小さいとき (しきい値は不明) 
+                # にしか静止させてはいけない
+                if np.all(target_diff_speed_limited / dt < stopped_velocity_eps):
+                    target_diff_speed_limited = np.zeros_like(
+                        target_diff_speed_limited)
+                    v = target_diff_speed_limited / dt
+
+                self.last_control_velocity = v
 
             sw.lap("Get control")
             # 平滑化の種類による対応
