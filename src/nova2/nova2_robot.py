@@ -309,7 +309,6 @@ class Nova2Robot:
         この時間はコントローラ内部の時間で、ユーザースクリプトの
         時間と少しずれているので使わないほうがよい。
         """
-        print("move joint",pose)
         str_joint = [str(x) for x in pose]      
         ret = self.client_move.sendRecvMsg("ServoJ("+str_joint[0]+","+str_joint[1]+","+str_joint[2]+","+str_joint[3]+","+str_joint[4]+","+str_joint[5]+")")
         self.logger.info("ServoJ("+str_joint[0]+","+str_joint[1]+","+str_joint[2]+","+str_joint[3]+","+str_joint[4]+","+str_joint[5]+")")

@@ -21,7 +21,7 @@ package_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(package_dir)
 from nova2.config import SHM_NAME, SHM_SIZE
 from nova2.nova2_monitor import Nova2_MON
-from nova2.nova2_control import Nova2_CON
+from nova2.nova2_control import Nova2_CON, Nova2_CON_Archiver
 from nova2_monitor_gui import run_joint_monitor_gui
 
 from dotenv import load_dotenv
@@ -108,7 +108,8 @@ class Cobotta_Pro_MQTT:
             self.pose[6:12] = joint_q 
 
             if "grip" in js:
-                if js['grip']:
+                if js['grip'][0]:
+                    # NOVA2_Control_IKの場合のみ？
                     self.pose[13] = 1
                 else:
                     self.pose[13] = 2
@@ -324,16 +325,16 @@ class ProcessManager:
             name="Nova2-control")
         self.ctrlP.start()
 
-        # self.ctrl_archiver = Nova2_CON_Archiver()
-        # self.ctrl_archiverP = Process(
-        #     target=self.ctrl_archiver.run_proc,
-        #     args=(self.control_archiver_pipe,
-        #           self.log_queue,
-        #           logging_dir,
-        #           self.control_to_archiver_queue,
-        #           ),
-        #     name="Nova2-control-archiver")
-        # self.ctrl_archiverP.start()
+        self.ctrl_archiver = Nova2_CON_Archiver()
+        self.ctrl_archiverP = Process(
+            target=self.ctrl_archiver.run_proc,
+            args=(self.control_archiver_pipe,
+                  self.log_queue,
+                  logging_dir,
+                  self.control_to_archiver_queue,
+                  ),
+            name="Nova2-control-archiver")
+        self.ctrl_archiverP.start()
         self.state_control = True
 
     def startMonitorGUI(self):

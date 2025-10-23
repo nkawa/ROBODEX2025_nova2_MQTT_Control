@@ -452,11 +452,9 @@ class Nova2_CON:
                     self.last_control_velocity = np.zeros((N - 1, 6))
                 # ロボットにコマンドを送る前は、非常停止が押されているかを
                 # スレーブモードが解除されているかで確認する
-                print("self.last = 0", self.last)
                 continue
 
             if (self.last == now):
-                print(now, self.last, now)
                 time.sleep(0.01)
                 continue
             sw.lap("Check stop")
@@ -510,10 +508,6 @@ class Nova2_CON:
 
                 self.last_target_delayed_velocity = v
                 target_delayed = self.last_target_delayed + target_diff_speed_limited
-                if(decount == 0):
-                    print("dt", dt)
-                    print(self.last_target_delayed, "last_target_delayed" )
-                    decount += 1
 
             self.last_target_delayed = target_delayed
 
@@ -713,10 +707,11 @@ class Nova2_CON:
             sw.lap("Check elapsed before command")
             t_elapsed = time.time() - now
             if t_elapsed > t_intv * 2:
-                self.logger.warning(
-                    f"Control loop is 2 times as slow as expected before command: "
-                    f"{t_elapsed} seconds")
-                self.logger.warning(sw.summary())
+                # self.logger.warning(
+                #     f"Control loop is 2 times as slow as expected before command: "
+                #     f"{t_elapsed} seconds")
+                # self.logger.warning(sw.summary())
+                pass
 
             if move_robot:
                 sw.lap("Send arm command")
@@ -751,15 +746,15 @@ class Nova2_CON:
             if t_wait > 0:
                 # if (move_robot and servo_mode == 0x102) or (not move_robot):
                 time.sleep(t_wait)
-            # time.sleep(0.5)
 
             sw.lap("Check elapsed after command")
             t_elapsed = time.time() - now
             if t_elapsed > t_intv * 2:
-                self.logger.warning(
-                    f"Control loop is 2 times as slow as expected after command: "
-                    f"{t_elapsed} seconds")
-                self.logger.warning(sw.summary())
+                # self.logger.warning(
+                #     f"Control loop is 2 times as slow as expected after command: "
+                #     f"{t_elapsed} seconds")
+                # self.logger.warning(sw.summary())
+                pass
 
             sw.stop()
             if stop:
@@ -768,7 +763,6 @@ class Nova2_CON:
                 if (control == self.last_control).all():
                     break
                 
-            # print(self.last, now, "last now")
             self.last_control = control
             self.last = now
  
