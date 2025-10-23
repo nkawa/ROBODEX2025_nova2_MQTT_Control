@@ -304,6 +304,7 @@ class Nova2_MON:
                 if self.client is not None:
                     self.client.loop_stop()
                     self.client.disconnect()
+                self.robot.close_port()
                 self.sm.close()
                 time.sleep(1)
                 self.logger.info("Process stopped")

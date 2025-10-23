@@ -148,6 +148,18 @@ class Nova2Robot:
         if hasattr(self, 'client_feed'):
             self._set_feed_back()
             # すぐには取得できない？
+    
+    def close_port(self):
+        if hasattr(self, 'client_dash'):
+            self.client_dash.close()
+            self.logger.info("Disconnect dash_port")
+        if hasattr(self, 'client_move'):
+            self.client_move.close()
+            self.logger.info("Disconnect control_port")
+        if hasattr(self, 'client_feed'):
+            self.client_feed.close()
+            self.logger.info("Disconnect feedback_port")
+        
         
     def _set_feed_back(self):
         if self.global_state["connect"]:
