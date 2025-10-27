@@ -42,11 +42,14 @@ def auto_send():
 
 def start_auto():
     global running
-    if not running:
+    if running:
+        running = False
+    else:
         running = True
         thread = threading.Thread(target=auto_send, daemon=True)
         thread.start()
         print("自動送信開始")
+
 
 def stop_auto():
     global running
@@ -76,7 +79,7 @@ btn_ccw.pack(pady=5)
 # 間隔設定
 interval_label = tk.Label(frame, text="間隔（秒）:")
 interval_label.pack(pady=(15, 0))
-interval_var = tk.StringVar(value="2.0")
+interval_var = tk.StringVar(value="10.0")
 interval_entry = tk.Entry(frame, textvariable=interval_var, width=10, justify="center")
 interval_entry.pack(pady=5)
 
@@ -88,6 +91,8 @@ btn_auto_start.pack(pady=5)
 btn_auto_stop = tk.Button(frame, text="自動送信停止", width=15, height=2, bg="#D3D3D3",
                           command=stop_auto)
 btn_auto_stop.pack(pady=5)
+
+root.geometry("")
 
 # 終了時処理
 def on_closing():
