@@ -147,6 +147,7 @@ class Nova2_CON:
 
     def init_robot(self):
         try:
+            # ２つの Nova2Robot があって良いの？
             self.robot = Nova2Robot(
                 host=ROBOT_IP,
                 default_servo_mode=servo_mode,
@@ -637,7 +638,9 @@ class Nova2_CON:
 
     def enable(self) -> None:
         try:
-            self.robot.enable_robot()
+            self.logger.info("Enabling .. robot")
+            result = self.robot.enable_robot()
+            self.logger.info(f"Enabling .. result: {result}")
         except Exception as e:
             self.logger.error("Error enabling robot")
             self.logger.error(f"{self.robot.format_error(e)}")

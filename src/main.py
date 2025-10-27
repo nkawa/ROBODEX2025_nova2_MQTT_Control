@@ -627,6 +627,7 @@ class MQTTWin:
 
     def EnableRobot(self):
         if not self.pm.state_control:
+            self.logger.info("Controller not working..")
             return
         self._exclusive_button_action(self.pm.enable)
 

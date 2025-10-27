@@ -14,7 +14,7 @@ import sys
 package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vendor'))
 sys.path.append(package_dir)
 
-from dobot_api import *
+from dobot.dobot_api import *
 # from dobot.dobot_api import DobotApiDashboard, DobotApiFeedBack, DobotApiDashboard
 
 
@@ -83,10 +83,12 @@ class Nova2Robot:
         },
         logger: Optional[logging.Logger] = None,
     ):
+        
         if logger is None:
             self.logger = logging.getLogger(__name__)
         else:
             self.logger = logger
+        print("Set ROBOT Logger as ",self.logger)
         self.name = name
         self._bcap = None
         self._hRob = 0
@@ -205,8 +207,13 @@ class Nova2Robot:
         # self.clear_error()
         # self.enable_wo_clear_error()
         try:
-            self.client_dash.EnableRobot(load=1.0, centerX=0, centerY=0, centerZ=70) #TCPハードコードしないようにしたい
-            return True
+            ret = self.client_dash.EnableRobot(load=1.0, centerX=0, centerY=0, centerZ=70) #TCPハードコードしないようにしたい
+            results = ret.split(",")
+            self.logger.info(f"Enable Robot Result:{results[0]}:{results[1]}")
+            if results[0] == '0':
+                return True
+            
+            return False
         except Exception as e:
             self.logger.error(f"Enable failed")
             self.logger.warning(f"{self.format_error(e)}")
