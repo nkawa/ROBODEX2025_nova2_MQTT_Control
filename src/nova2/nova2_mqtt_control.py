@@ -28,7 +28,8 @@ from dotenv import load_dotenv
 
 # パラメータ
 load_dotenv(os.path.join(os.path.dirname(__file__),'.env'))
-MQTT_SERVER = os.getenv("MQTT_SERVER", "sora2.uclab.jp")
+#MQTT_SERVER = os.getenv("MQTT_SERVER", "sora2.uclab.jp")
+MQTT_SERVER = os.getenv("MQTT_SERVER", "sora3.uclab.jp")
 MQTT_CTRL_TOPIC = os.getenv("MQTT_CTRL_TOPIC", "control")
 # ROBOT_UUID = os.getenv("ROBOT_UUID","nova2-real")
 # ROBOT_MODEL = os.getenv("ROBOT_MODEL","nova2-real")
